@@ -5,11 +5,19 @@ from services.llm import LLMClient
 
 class DeepSeekClient(LLMClient):
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, *,
+        model_name = "deepseek-v4-flash",
+        temperature = 0.7,
+        max_output_tokens =  300,
+        response_format = None
+    ):
         super().__init__(
             api_key=api_key,
             base_url="https://api.deepseek.com",
-            model="deepseek-chat",
+            model_name= model_name,
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+            response_format=response_format
         )
 
 
@@ -22,5 +30,5 @@ def get_deep_seek_client() -> DeepSeekClient:
         key = os.getenv("DEEPSEEK_API_KEY")
         if not key:
             raise ValueError("DEEPSEEK_API_KEY is not set")
-        __CLIENT = DeepSeekClient(key)
+        __CLIENT = DeepSeekClient(key, model_name="deepseek-v4-flash", max_output_tokens=10000, response_format={'type': 'json_object'})
     return __CLIENT
