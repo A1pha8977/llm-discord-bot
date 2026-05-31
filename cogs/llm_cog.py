@@ -76,8 +76,9 @@ class LLMCog(commands.Cog):
         ]
 
     async def _call_llm(self, messages: list[dict]) -> dict:
+        raw_response: None | str = None
         try:
-            raw_response: str = await self._llm_client.complete(
+            raw_response: None | str  = await self._llm_client.complete(
                 messages=messages,  # type: ignore[arg-type]
             )
             response: dict = json.loads(raw_response) if raw_response else {"status": "error", "text": "empty response"}
@@ -85,8 +86,8 @@ class LLMCog(commands.Cog):
             _logger.error(f"{e} last context: {messages[-1]["content"]}\nresponse: {raw_response}")
             return {"status": "error", "text": f"JSON decode error: {e}"}
         except Exception as e:
-            _logger.error(f"{e} last context: {messages[-1]["content"]}\nresponse: {raw_response}")
-            return {"status": "error", "text": f"API error: {e}"}
+            _logger.error(f"{e} last context: {messages[-1]["content"]}\nresponse: {raw_response or ""}")
+            return {"status": "error", "text": f"API ERROR\n```{e}```"}
         return response
 
     async def _reply_in_channel(self, message: Message, result: dict, fallback_content: str):
