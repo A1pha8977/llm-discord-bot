@@ -1,7 +1,7 @@
 import yaml
 
 
-def load_prompt_yaml(path: str = "config/llm_prompt.yaml") -> dict:
+def load_prompt_yaml(path: str = "config/llm_base_prompt.yaml") -> dict:
     try:
         with open(path, encoding="utf-8") as f:
             config = yaml.safe_load(f)

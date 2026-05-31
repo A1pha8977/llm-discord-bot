@@ -19,16 +19,3 @@ class DeepSeekClient(LLMClient):
             max_output_tokens=max_output_tokens,
             response_format=response_format
         )
-
-
-__CLIENT: DeepSeekClient | None = None
-
-
-def get_deep_seek_client() -> DeepSeekClient:
-    global __CLIENT
-    if __CLIENT is None:
-        key = os.getenv("DEEPSEEK_API_KEY")
-        if not key:
-            raise ValueError("DEEPSEEK_API_KEY is not set")
-        __CLIENT = DeepSeekClient(key, model_name="deepseek-v4-flash", max_output_tokens=10000, response_format={'type': 'json_object'})
-    return __CLIENT

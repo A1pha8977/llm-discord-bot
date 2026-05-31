@@ -9,7 +9,7 @@ def main():
     setup_logging()
     DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
     if not DISCORD_BOT_TOKEN:
-        raise ValueError("DISCORD_BOT_TOKEN is not set")
+        raise ValueError("Missing required environment variable: DISCORD_BOT_TOKEN")
     bot = my_bot.BOT
     bot.run(token=DISCORD_BOT_TOKEN)
 

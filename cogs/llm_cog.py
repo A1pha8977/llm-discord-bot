@@ -1,4 +1,4 @@
-from discord import Client, Message
+from discord import Message
 from discord.ext import commands
 from services.llm import LLMClient
 
@@ -6,6 +6,8 @@ import json
 from json import JSONDecodeError
 import logging
 import re
+
+from utils import config
 
 _logger = logging.getLogger(__name__)
 
@@ -19,10 +21,13 @@ def _estimate_tokens(messages: list[dict]) -> int:
 
 class LLMCog(commands.Cog):
 
-    def __init__(self, discord_bot: commands.Bot, llm_client: LLMClient, system_prompt = ""):
+    def __init__(self, discord_bot: commands.Bot, llm_client: LLMClient, character_prompt: str = ""):
         self._discord_bot = discord_bot
         self._llm_client = llm_client
-        self._system_prompt = system_prompt
+        base_prompt = config.load_prompt_yaml("config/llm_base_prompt.yaml")["system"]
+        self._system_prompt = (
+            f"{base_prompt}\n{character_prompt}" if character_prompt else base_prompt
+        )
 
     async def cog_load(self) -> None:
         return await super().cog_load()
