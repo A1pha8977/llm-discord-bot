@@ -1,14 +1,18 @@
+import os
+import random
+import time
+from typing import override
+
 from discord.ext import commands
 
-import time
-import random
-import os
+
 
 class GeneralCog(commands.Cog):
     def __init__(self, discord_bot: commands.Bot) -> None:
         self._discord_bot = discord_bot
         super().__init__()
 
+    @override
     async def cog_load(self) -> None:
         return await super().cog_load()
 
@@ -21,7 +25,7 @@ class GeneralCog(commands.Cog):
         await ctx.reply(s)
 
     @commands.command()
-    async def dice(self, ctx: commands.Context, *, arg = "6"):
+    async def dice(self, ctx: commands.Context, *, arg="6"):
         args = arg.split(" ")
         d = []
         for i in args:

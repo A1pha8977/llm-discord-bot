@@ -28,25 +28,19 @@ class MyBot(commands.Bot):
         if not MIMO_API_KEY:
             raise ValueError("Missing required environment variable: MIMO_API_KEY")
 
-        try:
-            character = config.load_prompt_yaml("config/llm_character.yaml")["character"]
-        except (FileNotFoundError, RuntimeError) as e:
-            logger.warning("Character config not loaded: %s", e)
-            character = ""
-
-        # await self.add_cog(cogs.llm_cog.LLMCog(self, DeepSeekClient(
-        #     DEEPSEEK_API_KEY,
-        #     model_name="deepseek-v4-flash",
-        #     max_output_tokens=10000,
-        #     response_format={'type': 'json_object'}
-        # ), character))
-
-        await self.add_cog(cogs.llm_cog.LLMCog(self, MimoClient(
-            MIMO_API_KEY,
-            model_name="mimo-v2.5-pro",
+        await self.add_cog(cogs.llm_cog.LLMCog(self, DeepSeekClient(
+            DEEPSEEK_API_KEY,
+            model_name="deepseek-v4-flash",
             max_output_tokens=10000,
             response_format={'type': 'json_object'}
-        ), character))
+        ), "default"))
+
+        # await self.add_cog(cogs.llm_cog.LLMCog(self, MimoClient(
+        #     MIMO_API_KEY,
+        #     model_name="mimo-v2.5-pro",
+        #     max_output_tokens=10000,
+        #     response_format={'type': 'json_object'}
+        # )))
     async def on_ready(self):
         logger.info("Bot logged in as %s", self.user)
 
