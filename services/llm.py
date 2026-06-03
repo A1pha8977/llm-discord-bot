@@ -1,5 +1,6 @@
 """LLM client abstraction with token usage tracking."""
 
+import asyncio
 import logging
 from dataclasses import dataclass
 
@@ -30,7 +31,6 @@ class LLMClient:
         model_name: Model name to use for completions.
         temperature: Sampling temperature (0.0 to 2.0).
         max_output_tokens: Maximum tokens in the response.
-        response_format: Optional response format dict (e.g. ``{"type": "json_object"}``).
     """
     def __init__(
         self,
@@ -38,29 +38,26 @@ class LLMClient:
         base_url: str,
         model_name: str,
         *,
-        temperature=0.7,
-        max_output_tokens=300,
-        response_format=None,
+        temperature: float = 0.7,
+        max_output_tokens: int = 300,
     ):
         self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
         self.model_name = model_name
         self.temperature = temperature
         self.max_output_tokens = max_output_tokens
-        self.response_format = response_format
-        self._last_usage: TokenUsage | None = None
         self._total_usage = TokenUsage(0, 0, 0)
+        self._usage_lock = asyncio.Lock()
 
-    async def complete(self, messages: list[ChatCompletionMessageParam]) -> str:
-        """Send a chat completion request and return the response text.
+    async def complete(self, messages: list[ChatCompletionMessageParam], *, response_format: dict | None = None) -> tuple[str, TokenUsage]:
+        """Send a chat completion request and return the response text and usage.
 
         Args:
             messages: List of chat messages in OpenAI format.
+            response_format: Optional response format dict
+                (e.g. ``{"type": "json_object"}``).
 
         Returns:
-            The model's response text.
-
-        Side effect:
-            Updates ``_last_usage`` and ``_total_usage`` with token counts.
+            A tuple of ``(response_text, token_usage)``.
         """
         kwargs: dict = dict(
             model=self.model_name,
@@ -68,26 +65,29 @@ class LLMClient:
             temperature=self.temperature,
             max_tokens=self.max_output_tokens,
         )
-        if self.response_format:
-            kwargs["response_format"] = self.response_format
+        if response_format:
+            kwargs["response_format"] = response_format
         response = await self._client.chat.completions.create(**kwargs)
+        usage = TokenUsage(0, 0, 0)
         if response.usage:
-            self._last_usage = TokenUsage(
+            usage = TokenUsage(
                 prompt_tokens=response.usage.prompt_tokens,
                 completion_tokens=response.usage.completion_tokens,
                 total_tokens=response.usage.total_tokens,
             )
-            self._total_usage = TokenUsage(
-                self._total_usage.prompt_tokens + self._last_usage.prompt_tokens,
-                self._total_usage.completion_tokens
-                + self._last_usage.completion_tokens,
-                self._total_usage.total_tokens + self._last_usage.total_tokens,
-            )
-        return response.choices[0].message.content or ""
+            async with self._usage_lock:
+                self._total_usage = TokenUsage(
+                    self._total_usage.prompt_tokens + usage.prompt_tokens,
+                    self._total_usage.completion_tokens + usage.completion_tokens,
+                    self._total_usage.total_tokens + usage.total_tokens,
+                )
+        if not response.choices:
+            return "", usage
+        return response.choices[0].message.content or "", usage
 
-    def get_last_usage(self) -> TokenUsage | None:
-        """Returns token usage for the last request, or None."""
-        return self._last_usage
+    async def complete_json(self, messages: list[ChatCompletionMessageParam]) -> tuple[str, TokenUsage]:
+        """Call ``complete`` with ``response_format={"type": "json_object"}``."""
+        return await self.complete(messages, response_format={"type": "json_object"})
 
     def get_total_usage(self) -> TokenUsage:
         """Returns cumulative token usage across all requests."""

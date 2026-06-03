@@ -1,0 +1,20 @@
+# Secrets
+\.env
+
+# Python
+__pycache__/
+*.pyc
+\.venv
+
+# IDE / Editor
+\.zed/
+\.vscode/
+
+# Project local overrides (not versioned)
+config/llm_character.yaml
+config/bot_whitelist.yaml
+config/bot.yaml
+config/llm_providers.yaml
+
+# Logs
+logs/

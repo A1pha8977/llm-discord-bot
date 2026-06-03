@@ -1,10 +1,7 @@
-import os
 import random
 import time
-from typing import override
 
 from discord.ext import commands
-
 
 
 class GeneralCog(commands.Cog):
@@ -12,16 +9,12 @@ class GeneralCog(commands.Cog):
         self._discord_bot = discord_bot
         super().__init__()
 
-    @override
-    async def cog_load(self) -> None:
-        return await super().cog_load()
-
     @commands.command()
     async def ping(self, ctx: commands.Context):
         await ctx.reply(content=time.asctime(time.localtime(time.time())))
 
     @commands.command()
-    async def echo(self, ctx: commands.Context, *, s: str):
+    async def echo(self, ctx: commands.Context, *, s: str = "echo"):
         await ctx.reply(s)
 
     @commands.command()
@@ -44,5 +37,5 @@ class GeneralCog(commands.Cog):
 
     @commands.command()
     async def halt(self, ctx: commands.Context):
+        await ctx.send("Shutting down...")
         await self._discord_bot.close()
-        os.abort()

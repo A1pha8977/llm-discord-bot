@@ -1,0 +1,6 @@
+# Bot configuration template. Copy to bot.yaml and customize.
+# config/bot.yaml is gitignored and not shared between deployments.
+
+defaults:
+    llm_profile: deepseek-creative # key in llm_providers.yaml
+    prompt_profile: default # key in llm_character.yaml
