@@ -15,7 +15,7 @@ deepseek:
             temperature: 1.2
 
 mimo:
-    base_url: https://api.xiaomimimo.com/v1
+    base_url: https://token-plan-sgp.xiaomimimo.com/v1
     profiles:
         default:
             model_name: mimo-v2.5-pro

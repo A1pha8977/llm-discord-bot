@@ -4,11 +4,12 @@ and runtime LLM provider switching."""
 import logging
 import re
 
-import openai
 from discord import Message
+from discord.abc import Messageable
 from discord.ext import commands
 
-from services.chat_engine import ChatEngine, ChatMessage
+from services.chat_engine import ChatContext, ChatEngine, ChatEngineError, ChatMessage
+from services.llm import TokenUsage
 
 _logger = logging.getLogger(__name__)
 
@@ -52,44 +53,44 @@ class LLMCog(commands.Cog):
             message.author.display_name,
         )
         async with message.channel.typing():
-            messages = await self._build_context(message)
+            context = await self._build_context(message)
             channel_id = message.channel.id
 
             try:
-                text = await self._chat_engine.respond(
-                    messages,
+                text, usage = await self._chat_engine.respond(
+                    context,
                     llm_profile_name=self._channel_llm.get(channel_id),
                     prompt_profile_name=self._channel_prompt.get(channel_id),
                 )
-            except openai.OpenAIError as e:
+            except ChatEngineError as e:
                 _logger.error(
-                    "[%s] | #%s | API error: %s",
+                    "[%s] | #%s | LLM API error: %s",
                     message.created_at.strftime("%H:%M"),
                     self._channel_name(message.channel),
                     e,
                     exc_info=True,
                 )
-                text = f"API ERROR: {e}"
-            if not text:
-                _logger.warning(
-                    "[%s] | #%s | LLM empty response",
-                    message.created_at.strftime("%H:%M"),
-                    self._channel_name(message.channel),
-                )
-                return
-        await self._reply_in_channel(message, text)
+                text = f"LLM API ERROR: {e}"
+                usage = TokenUsage(0, 0, 0)
+            await self._reply_in_channel(message, text or "...")
+            _logger.info(
+                "[%s] | #%s | usage: %s",
+                message.created_at.strftime("%H:%M"),
+                self._channel_name(message.channel),
+                usage,
+            )
 
     @staticmethod
-    def _channel_name(channel) -> str:
+    def _channel_name(channel: Messageable) -> str:
         return getattr(channel, "name", str(channel))
 
-    async def _build_context(self, message: Message) -> list[ChatMessage]:
+    async def _build_context(self, message: Message) -> ChatContext:
         """Fetches channel history and builds a message list for the LLM."""
         guild = message.guild
         if guild is None:
             raise RuntimeError("guild is unexpectedly None in _build_context")
 
-        messages: list[ChatMessage] = []
+        context = ChatContext()
         async for msg in message.channel.history(limit=20):
             if msg.id == message.id:
                 continue
@@ -101,7 +102,7 @@ class LLMCog(commands.Cog):
                 r".*COMMAND:", msg.content
             ):
                 continue
-            messages.append(
+            context.add(
                 ChatMessage(
                     role="assistant" if msg.author == guild.me else "user",
                     content=msg.content,
@@ -110,29 +111,20 @@ class LLMCog(commands.Cog):
                 )
             )
 
-        messages.reverse()
-        messages.append(
+        context.reverse()
+        context.add(
             ChatMessage(
                 role="user",
                 content=message.content,
                 name=message.author.display_name,
             )
         )
-        return messages
+        return context
 
     async def _reply_in_channel(self, message: Message, text: str):
-        """Replies to the triggering message.
-
-        Sends ``text`` if non-empty, otherwise logs a warning.
-        """
+        """Replies to the triggering message."""
         assert text
         await message.reply(text)
-        _logger.info(
-            "[%s] | #%s | usage: %s",
-            message.created_at.strftime("%H:%M"),
-            self._channel_name(message.channel),
-            self._chat_engine.get_last_usage(),
-        )
 
     @commands.command()
     async def usage(self, ctx: commands.Context):
