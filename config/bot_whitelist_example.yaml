@@ -1,0 +1,15 @@
+# TODO: WHITELIST IS UNIMPLEMENTED
+
+# Bot access control for commands (e.g. !#switch_llm, !#switch_prompt).
+# Leave a list empty to disable that restriction.
+
+# Whitelisted servers — commands only work in these guilds.
+# Leave empty to allow all servers.
+servers:
+    - YOUR_SERVER_ID
+
+# Whitelisted users — only these user IDs may use bot commands.
+# Leave empty to allow any user (no whitelist).
+users:
+    - USER1_ID
+    - USER2_ID

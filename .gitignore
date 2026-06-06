@@ -10,6 +10,10 @@ __pycache__/
 \.zed/
 \.vscode/
 
+# coding agent
+\.opencode/
+opencode.json
+
 # Project local overrides (not versioned)
 config/llm_character.yaml
 config/bot_whitelist.yaml

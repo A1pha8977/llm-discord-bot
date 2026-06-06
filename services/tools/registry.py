@@ -1,7 +1,6 @@
 import inspect
-from collections.abc import Callable
-
 import logging
+from collections.abc import Callable
 
 _logger = logging.getLogger(__name__)
 
@@ -10,6 +9,7 @@ _TYPE_MAP = {
     str: "string",
     float: "number",
     bool: "boolean",
+    list: "array",
 }
 
 
@@ -25,20 +25,27 @@ class ToolRegistry:
         name: str | None = None,
         *,
         description: str = "",
-        params: dict[str, str] | None = None,
+        params: dict[str, str | dict] | None = None,
+        enabled: bool = True,
     ):
         """Decorator: register a function as a callable tool.
 
         Args:
             name: Tool name (defaults to function name).
             description: Human-readable tool description for the LLM.
-            params: Map of parameter names to descriptions.  Must match the
-                function's signature exactly.
+            params: Map of parameter names to descriptions (``str``) or
+                rich JSON Schema partials (``dict``).  A rich partial
+                must include a ``"description"`` key and may carry extra
+                constraints (``enum``, ``minimum``, ``maximum``,
+                ``items`` for arrays, etc.).  Declared names must match
+                the function's signature exactly.
         """
         if params is None:
             params = {}
 
         def wrapper(func: Callable[..., object]):
+            if not enabled:
+                return func
             _name = name or func.__name__
             if _name in self._tools:
                 raise ValueError(f"Tool '{_name}' is already registered")
@@ -65,7 +72,7 @@ class ToolRegistry:
                 "content": f"Error: unknown tool '{name}'",
             }
 
-        _logger.info("Calling tool %s with args: %s", name, args)
+        _logger.info('Calling tool "%s" with args: %s', name, args)
         try:
             sig = inspect.signature(fn)
             bound = sig.bind(**args)
@@ -85,15 +92,26 @@ class ToolRegistry:
             "content": result,
         }
 
-    def to_openai_schema(self) -> list[dict]:
-        """Return the OpenAI ``tools`` array for all registered tools."""
+    def to_openai_schema(self, *, strict: bool = False) -> list[dict]:
+        """Return the OpenAI ``tools`` array for all registered tools.
+
+        Args:
+            strict: When ``True``, emit DeepSeek strict-mode schemas
+                (``"strict": true`` on every function,
+                ``"additionalProperties": false``, and all parameters
+                marked as required).
+        """
         result: list[dict] = []
         for name, (fn, info) in self._tools.items():
             func_def: dict = {
                 "name": name,
                 "description": info["description"],
-                "parameters": self._build_openai_params(fn, info["params"]),
+                "parameters": self._build_openai_params(
+                    fn, info["params"], strict=strict
+                ),
             }
+            if strict:
+                func_def["strict"] = True
             result.append({"type": "function", "function": func_def})
         return result
 
@@ -103,7 +121,7 @@ class ToolRegistry:
     # --- Internal ---
 
     @staticmethod
-    def _check_params(name: str, fn: Callable, declared: dict[str, str]) -> None:
+    def _check_params(name: str, fn: Callable, declared: dict[str, str | dict]) -> None:
         sig = inspect.signature(fn)
         func_params = set(sig.parameters.keys())
         declared_set = set(declared.keys())
@@ -120,23 +138,75 @@ class ToolRegistry:
                 f"Tool '{name}': missing descriptions for parameters: {missing}"
             )
 
+        for pname, desc in declared.items():
+            if isinstance(desc, dict) and "description" not in desc:
+                raise ValueError(
+                    f"Tool '{name}': param '{pname}' dict must include "
+                    f"'description' key"
+                )
+
     @staticmethod
-    def _build_openai_params(fn: Callable, descriptions: dict[str, str]) -> dict:
+    def _build_param_schema(desc: str | dict, fallback_type: str = "string") -> dict:
+        """Build a JSON Schema property dict from a simple string or rich
+        ``dict`` partial.
+
+        When *desc* is a ``str`` the result is ``{"type": fallback_type,
+        "description": desc}``.
+
+        When *desc* is a ``dict`` the keys are merged into the result
+        (``type`` defaults to *fallback_type* unless overridden).
+        Supported extra keys: ``enum``, ``minimum``, ``maximum``,
+        ``exclusiveMinimum``, ``exclusiveMaximum``, ``multipleOf``,
+        ``const``, ``default``, ``items``.
+        """
+        if isinstance(desc, str):
+            return {"type": fallback_type, "description": desc}
+
+        schema: dict = {"type": desc.get("type", fallback_type)}
+        for key in (
+            "description",
+            "enum",
+            "minimum",
+            "maximum",
+            "exclusiveMinimum",
+            "exclusiveMaximum",
+            "multipleOf",
+            "const",
+            "default",
+            "items",
+        ):
+            if key in desc:
+                schema[key] = desc[key]
+        return schema
+
+    @staticmethod
+    def _build_openai_params(
+        fn: Callable,
+        descriptions: dict[str, str | dict],
+        *,
+        strict: bool = False,
+    ) -> dict:
         sig = inspect.signature(fn)
         properties: dict = {}
         required: list[str] = []
 
         for pname, param in sig.parameters.items():
             json_type = _TYPE_MAP.get(param.annotation, "string")
-            properties[pname] = {"type": json_type, "description": descriptions[pname]}
+            properties[pname] = ToolRegistry._build_param_schema(
+                descriptions[pname], fallback_type=json_type
+            )
             if param.default is inspect.Parameter.empty:
                 required.append(pname)
 
-        return {
+        result: dict = {
             "type": "object",
             "properties": properties,
             "required": required,
         }
+        if strict:
+            result["required"] = list(properties.keys())
+            result["additionalProperties"] = False
+        return result
 
 
 tool_registry = ToolRegistry()

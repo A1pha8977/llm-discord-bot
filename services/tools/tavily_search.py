@@ -1,17 +1,14 @@
-import os
-
 from tavily import TavilyClient
 
 from services.tools.registry import tool_registry
+from utils import config
 
 
 class TavilySearch:
     """Tavily web search client. Reads ``TAVILY_API_KEY`` from ``.env``."""
 
     def __init__(self):
-        api_key = os.getenv("TAVILY_API_KEY")
-        if api_key is None:
-            raise ValueError("Missing TAVILY_API_KEY")
+        api_key = config.load_tavily_api_key()
         self._client = TavilyClient(api_key=api_key)
 
     def search(
@@ -90,14 +87,23 @@ _tavily = TavilySearch()
     ),
     params={
         "query": "The search query string",
-        "max_results": "Number of results (1–300, default 5)",
-        "search_depth": (
-            "Search depth: 'basic' (fast, default) or 'advanced' (thorough)"
-        ),
-        "topic": "Filter: 'general' (default), 'news', or 'finance'",
-        "time_range": (
-            "Time filter: 'day', 'week', 'month', 'year', or omit for any time"
-        ),
+        "max_results": {
+            "description": "Number of results (1–300, default 5)",
+            "minimum": 1,
+            "maximum": 300,
+        },
+        "search_depth": {
+            "description": "Search depth: 'basic' (fast, default) or 'advanced' (thorough)",
+            "enum": ["basic", "advanced"],
+        },
+        "topic": {
+            "description": "Filter: 'general' (default), 'news', or 'finance'",
+            "enum": ["general", "news", "finance"],
+        },
+        "time_range": {
+            "description": "Time filter: 'day', 'week', 'month', 'year', or omit for any time",
+            "enum": ["day", "week", "month", "year"],
+        },
     },
 )
 def web_search(

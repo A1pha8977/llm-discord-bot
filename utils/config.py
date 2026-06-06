@@ -46,13 +46,16 @@ Example::
 No other files need modification.
 """
 
+import os
 import sys
 from collections.abc import Callable
 
+import dotenv
 import yaml
 
-_cache: dict[str, dict] = {}
-
+_config_cache: dict[str, dict] = {}
+_dotenv_cache: dict[str, str] = {}
+_dotenv_loaded = False
 
 class ConfigError(Exception):
     """Base exception for config loading errors."""
@@ -81,14 +84,22 @@ def _load_yaml(path: str) -> dict:
 
 
 def _load_once(path: str, *, validator: Callable[[dict], None] | None = None) -> dict:
-    if path not in _cache:
+    if path not in _config_cache:
         cfg = _load_yaml(path)
         if validator is not None:
             validator(cfg)
-        _cache[path] = cfg
-    return _cache[path]
+        _config_cache[path] = cfg
+    return _config_cache[path]
 
-
+def _load_from_dotenv(key: str) -> str:
+    if not _dotenv_loaded:
+        dotenv.load_dotenv()
+    v = os.getenv(key)
+    if v is None:
+        raise ValueError(f"Missing {key} in .env")
+    return v
+    
+    
 # ---------------------------------------------------------------------------
 # Validators
 # ---------------------------------------------------------------------------
@@ -188,6 +199,9 @@ def load_llm_providers_config(
     path: str = "config/llm_providers.yaml",
 ) -> dict:
     return _load_once(path, validator=_validate_llm_providers)
+
+def load_tavily_api_key() -> str:
+    return _load_from_dotenv("TAVILY_API_KEY")
 
 
 # ---------------------------------------------------------------------------
