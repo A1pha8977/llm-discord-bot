@@ -5,7 +5,7 @@ from services.tools.registry import tool_registry
 
 @tool_registry.register(
     name="time",
-    description=(
+    tool_description=(
         "Get the current date and time. "
         "Call this BEFORE answering any time-sensitive question — "
         "you have no inherent knowledge of the current date. "

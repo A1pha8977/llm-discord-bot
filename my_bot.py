@@ -5,6 +5,7 @@ during ``setup_hook``.  Use ``create_bot()`` to get an instance.
 """
 
 import cogs.general_cog
+import cogs.guild_whitelist_cog
 import cogs.llm_cog
 import discord
 from discord.ext import commands
@@ -36,7 +37,8 @@ class MyBot(commands.Bot):
         Called once by discord.py before the bot logs in.
         """
         await self.add_cog(cogs.general_cog.GeneralCog(self))
-        await self.add_cog(cogs.llm_cog.LLMCog(self, ChatEngine()))
+        await self.add_cog(cogs.guild_whitelist_cog.GuildWhitelistCog(self))
+        await self.add_cog(cogs.llm_cog.LLMChatCog(self, ChatEngine()))
 
     async def on_ready(self):
         """Log the bot's login name when the WebSocket connects."""

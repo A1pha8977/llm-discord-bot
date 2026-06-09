@@ -165,7 +165,11 @@ class LLMClient:
 
             msgs.append(choice.message.model_dump(exclude_none=True))
             msgs.extend(
-                self._execute_all_tool_calls(tool_registry, choice.message.tool_calls)
+                await asyncio.to_thread(
+                    self._execute_all_tool_calls,
+                    tool_registry,
+                    choice.message.tool_calls,
+                )
             )
 
         _logger.warning(

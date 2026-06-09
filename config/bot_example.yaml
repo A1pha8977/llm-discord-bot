@@ -4,3 +4,4 @@
 defaults:
     llm_profile: deepseek-creative # key in llm_providers.yaml
     prompt_profile: default # key in llm_character.yaml
+whitelist_guilds: [] # list[int], empty = allow all

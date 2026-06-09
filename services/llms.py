@@ -1,9 +1,9 @@
 """LLM client factory."""
 
-import os
-
 from services.llm import LLMClient
 from utils import config
+
+
 
 class LLMClientFactory:
     """Creates all LLMClient instances from a YAML provider config.
@@ -22,7 +22,7 @@ class LLMClientFactory:
         llms_config = config.load_llm_providers_config()
         clients: dict[str, LLMClient] = {}
         for provider_name, provider_cfg in llms_config.items():
-            api_key = cls._resolve_api_key(provider_name)
+            api_key = config.get_api_key(provider_name)
             base_url = provider_cfg["base_url"]
             for profile_name, profile_cfg in provider_cfg["profiles"].items():
                 key = f"{provider_name}-{profile_name}"
@@ -34,12 +34,3 @@ class LLMClientFactory:
                     max_output_tokens=int(profile_cfg.get("max_output_tokens", 300)),
                 )
         return clients
-
-    @staticmethod
-    def _resolve_api_key(provider_name: str) -> str:
-        key = os.getenv(f"{provider_name.upper()}_API_KEY")
-        if not key:
-            raise ValueError(
-                f"Missing {provider_name.upper()}_API_KEY in .env"
-            )
-        return key

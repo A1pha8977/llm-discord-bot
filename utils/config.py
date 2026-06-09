@@ -25,6 +25,13 @@ Usage
     cfg = config.load_bot_config()
     defaults = cfg["defaults"]
 
+
+    For API key variables (loaded from ``.env`` instead of YAML), use the
+    func:`get_api_key` which appends ``_API_KEY`` to the base name
+    and reads from the environment::
+
+        # Reads ``TAVILY_API_KEY`` from .env
+        tavily_key = config.get_api_key("tavily")
 -----------
 Adding a new config file
 -----------
@@ -36,19 +43,21 @@ Adding a new config file
 
 Example::
 
-    def _validate_whitelist(cfg: dict) -> None:
-        if "users" not in cfg:
-            raise ConfigParseError("Missing 'users' key")
+    def _validate_greeting(cfg: dict) -> None:
+        if "text" not in cfg:
+            raise ConfigParseError("Missing 'text' key")
 
-    def load_whitelist_config(path="config/whitelist.yaml") -> dict:
-        return _load_once(path, validator=_validate_whitelist)
+    def load_greeting_config(path="config/greeting.yaml") -> dict:
+        return _load_once(path, validator=_validate_greeting)
 
 No other files need modification.
+
 """
 
 import os
 import sys
 from collections.abc import Callable
+from types import ModuleType
 
 import dotenv
 import yaml
@@ -56,6 +65,7 @@ import yaml
 _config_cache: dict[str, dict] = {}
 _dotenv_cache: dict[str, str] = {}
 _dotenv_loaded = False
+
 
 class ConfigError(Exception):
     """Base exception for config loading errors."""
@@ -91,18 +101,22 @@ def _load_once(path: str, *, validator: Callable[[dict], None] | None = None) ->
         _config_cache[path] = cfg
     return _config_cache[path]
 
+
 def _load_from_dotenv(key: str) -> str:
+    global _dotenv_loaded
     if not _dotenv_loaded:
         dotenv.load_dotenv()
+        _dotenv_loaded = True
     v = os.getenv(key)
     if v is None:
         raise ValueError(f"Missing {key} in .env")
     return v
-    
-    
+
+
 # ---------------------------------------------------------------------------
 # Validators
 # ---------------------------------------------------------------------------
+
 
 def _validate_base_prompt(cfg: dict) -> None:
     if "base" not in cfg:
@@ -115,6 +129,7 @@ def _validate_character_prompt(cfg: dict) -> None:
     if not cfg:
         raise ConfigParseError("No content found")
     # allow empty profile
+
 
 def _validate_bot(cfg: dict) -> None:
     if "defaults" not in cfg:
@@ -136,6 +151,14 @@ def _validate_bot(cfg: dict) -> None:
             f"Default prompt_profile '{default_prompt}' not found in character config"
         )
 
+    wl = cfg.get("whitelist_guilds", [])
+    if not isinstance(wl, list):
+        raise ConfigParseError("'whitelist_guilds' must be a list")
+    for gid in wl:
+        if not isinstance(gid, int):
+            raise ConfigParseError(f"whitelist_guilds: {gid} must be an integer")
+
+
 def _validate_llm_providers(cfg: dict) -> None:
     if not cfg:
         raise ConfigParseError("No providers configured")
@@ -146,10 +169,14 @@ def _validate_llm_providers(cfg: dict) -> None:
         if not isinstance(provider["base_url"], str):
             raise ConfigParseError(f"'base_url' for provider '{name}' must be a string")
         if not isinstance(provider["profiles"], dict):
-            raise ConfigParseError(f"'profiles' for provider '{name}' must be a mapping")
+            raise ConfigParseError(
+                f"'profiles' for provider '{name}' must be a mapping"
+            )
         for profile_name, profile in provider["profiles"].items():
             if "model_name" not in profile:
-                raise ConfigParseError(f"Missing 'model_name' for '{name}.{profile_name}'")
+                raise ConfigParseError(
+                    f"Missing 'model_name' for '{name}.{profile_name}'"
+                )
             if not isinstance(profile["model_name"], str):
                 raise ConfigParseError(
                     f"'model_name' for '{name}.{profile_name}' must be a string"
@@ -174,12 +201,12 @@ def _validate_llm_providers(cfg: dict) -> None:
                     raise ConfigParseError(
                         f"'max_output_tokens' for '{name}.{profile_name}' must be >= 1"
                     )
-            
 
 
 # ---------------------------------------------------------------------------
 # Public loaders
 # ---------------------------------------------------------------------------
+
 
 def load_base_prompt_config(path: str = "config/llm_base_prompt.yaml") -> dict:
     return _load_once(path, validator=_validate_base_prompt)
@@ -200,13 +227,11 @@ def load_llm_providers_config(
 ) -> dict:
     return _load_once(path, validator=_validate_llm_providers)
 
-def load_tavily_api_key() -> str:
-    return _load_from_dotenv("TAVILY_API_KEY")
-
 
 # ---------------------------------------------------------------------------
 # Profile helpers
 # ---------------------------------------------------------------------------
+
 
 def get_character_prompt_names() -> set[str]:
     """All available character prompt profile names."""
@@ -238,6 +263,7 @@ def get_llm_profile_names() -> set[str]:
 # Shortcuts (for callers that only need one value)
 # ---------------------------------------------------------------------------
 
+
 def get_base_prompt() -> str:
     """Return the base prompt from ``llm_base_prompt.yaml``."""
     return load_base_prompt_config()["base"]
@@ -253,9 +279,22 @@ def get_default_prompt_profile() -> str:
     return load_bot_config()["defaults"]["prompt_profile"]
 
 
+def get_whitelist_guilds() -> set[int]:
+    """Return the set of allowed guild IDs from ``bot.yaml``.
+
+    An empty set means no restriction (all guilds are allowed).
+    """
+    return set[int](load_bot_config().get("whitelist_guilds", []))
+
+
+def get_api_key(provider_name: str) -> str:
+    return _load_from_dotenv(provider_name.upper() + "_API_KEY")
+
+
 # ---------------------------------------------------------------------------
 # Startup
 # ---------------------------------------------------------------------------
+
 
 def validate_all() -> None:
     """Validate all config files.  Auto-discovers every ``load_*_config``.
@@ -263,7 +302,7 @@ def validate_all() -> None:
     Adding a new ``load_xxx_config(…)`` includes it automatically — no edits
     needed here.
     """
-    module = sys.modules[__name__]
+    module: ModuleType = sys.modules[__name__]
     for name in sorted(dir(module)):
         if name.startswith("load_") and name.endswith("_config"):
             getattr(module, name)()

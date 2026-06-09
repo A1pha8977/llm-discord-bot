@@ -154,15 +154,13 @@ class ChatEngine:
 
     def get_total_usage(self) -> TokenUsage:
         """Returns cumulative token usage across all requests."""
-        total = TokenUsage(0, 0, 0)
+        p = c = t = 0
         for client in self._llm_clients.values():
             u = client.get_total_usage()
-            total = TokenUsage(
-                total.prompt_tokens + u.prompt_tokens,
-                total.completion_tokens + u.completion_tokens,
-                total.total_tokens + u.total_tokens,
-            )
-        return total
+            p += u.prompt_tokens
+            c += u.completion_tokens
+            t += u.total_tokens
+        return TokenUsage(p, c, t)
 
     # --- Internal ---
 
