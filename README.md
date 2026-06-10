@@ -1,26 +1,29 @@
+[English](README.md) | [简体中文](README_zh.md)
+
 # llm-discord-bot
 
-一个 Discord 聊天机器人，被 @ 时通过 LLM API（DeepSeek / MiMo 等 OpenAI 兼容接口）
-生成带对话上下文的回复。
+A Discord chatbot that replies to @mentions via LLM APIs (DeepSeek, MiMo, and
+other OpenAI-compatible providers) with conversation context.
 
-支持按频道热切换 LLM 模型（`/switch_llm`）、角色扮演提示词（`/switch_prompt`）。
+Supports per-channel LLM model switching (`/switch_llm`) and character prompt
+profiles (`/switch_prompt`).
 
-## 前置条件
+## Prerequisites
 
 - Python 3.12+
-- LLM 服务商 API key（DeepSeek / MiMo / 其他兼容接口）
-- 已注册的 Discord Bot
+- LLM provider API key (DeepSeek / MiMo / any OpenAI-compatible API)
+- A registered Discord Bot
 
-## 安装
+## Installation
 
-### 1. 克隆仓库
+### 1. Clone the repository
 
 ```bash
 git clone git@github.com:A1pha8977/llm-discord-bot.git
 cd llm-discord-bot
 ```
 
-### 2. 创建虚拟环境
+### 2. Create a virtual environment
 
 **Windows (PowerShell):**
 ```powershell
@@ -34,17 +37,18 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-### 3. 安装依赖
+### 3. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## 配置
+## Configuration
 
-所有配置文件启动时由 `validate_all()` 校验，格式错误会立即报错。
+All configuration files are validated by `validate_all()` at startup.
+Malformed configs cause an immediate error.
 
-### 1. 创建 `.env` 文件
+### 1. Create the `.env` file
 
 ```env
 DISCORD_BOT_TOKEN=your_discord_bot_token
@@ -52,118 +56,121 @@ DEEPSEEK_API_KEY=sk-your-deepseek-api-key
 # MIMO_API_KEY=your-mimo-api-key
 ```
 
-API key 按提供商名大写加 `_API_KEY` 后缀。例：`deepseek` → `DEEPSEEK_API_KEY`。
+API keys use the provider name in uppercase with `_API_KEY` suffix.
+Example: `deepseek` → `DEEPSEEK_API_KEY`.
 
-### 2. 创建 `config/llm_providers.yaml`
+### 2. Create `config/llm_providers.yaml`
 
-定义 LLM 提供商及模型参数（base_url、model_name、temperature 等）。
+Defines LLM providers with model parameters (base_url, model_name, temperature, etc.).
 
 ```bash
 cp config/llm_providers.example.yaml config/llm_providers.yaml
-# 编辑 llm_providers.yaml
+# Edit llm_providers.yaml
 ```
 
-### 3. 创建 `config/llm_character.yaml`
+### 3. Create `config/llm_character.yaml`
 
-定义角色扮演提示词（按频道切换）。
+Defines character prompt profiles (switchable per channel).
 
 ```bash
 cp config/llm_character.example.yaml config/llm_character.yaml
-# 编辑 llm_character.yaml
+# Edit llm_character.yaml
 ```
 
-### 4. 创建 `config/bot.yaml`
+### 4. Create `config/bot.yaml`
 
-Bot 全局默认值。
+Bot global defaults.
 
 ```bash
 cp config/bot.example.yaml config/bot.yaml
-# 编辑 bot.yaml
+# Edit bot.yaml
 ```
 
-> `llm_providers.yaml`、`llm_character.yaml`、`bot.yaml` 被 `.gitignore` 忽略，
-> 不进入版本控制。每个部署环境需从 `.example.yaml` 复制后独立配置。
+> `llm_providers.yaml`, `llm_character.yaml`, and `bot.yaml` are gitignored.
+> Copy from `.example.yaml` and configure per deployment.
 
-### 5. （可选）编辑 `config/llm_base_prompt.yaml`
+### 5. (Optional) Edit `config/llm_base_prompt.yaml`
 
-系统提示词：输出格式、场景、理解规则等。默认已可用。
+System prompt for the LLM: output format, scenario, comprehension rules, etc.
+The default is ready to use.
 
-## 运行
+## Running
 
 ```bash
 python main.py
 ```
 
-## 命令
+## Commands
 
-| 命令 | 说明 |
+| Command | Description |
 |------|------|
-| `@bot <message>` | 与 LLM 对话 |
-| `/switch_llm <key>` | 切换当前频道使用的 LLM 模型 |
-| `/switch_llm` | 列出可用的 LLM 模型 |
-| `/switch_prompt <profile>` | 切换当前频道的角色扮演 |
-| `/switch_prompt` | 列出可用的角色预设 |
-| `/usage` | 查看累计 token 使用量 |
-| `/ping` | 返回服务器时间 |
-| `/echo <text>` | 回声 |
-| `/dice <n> ...` | 掷 n 面骰子 |
-| `/whoami` | 显示你的名字 |
-| `/clear_context` | 清除当前频道的对话上下文 |
-| `/halt` | 关闭 Bot（仅 owner） |
+| `@bot <message>` | Chat with the LLM |
+| `/switch_llm <key>` | Switch the LLM model for the current channel |
+| `/switch_llm` | List available LLM models |
+| `/switch_prompt <profile>` | Switch the character prompt for the current channel |
+| `/switch_prompt` | List available character profiles |
+| `/usage` | View cumulative token usage |
+| `/ping` | Return the server time |
+| `/echo <text>` | Echo back the provided text |
+| `/dice <n> ...` | Roll dice with N faces |
+| `/whoami` | Show your display name |
+| `/clear_context` | Clear conversation context for the current channel |
+| `/halt` | Shut down the bot (owner only) |
 
-## 工具调用
+## Tool Calling
 
-Bot 支持 LLM 自主调用以下工具获取实时数据：
+The LLM can autonomously invoke the following tools for real-time data:
 
-| 工具 | 说明 |
+| Tool | Description |
 |------|------|
-| `Tavilysearch` | 联网搜索获取实时信息 |
-| `extract` | 从网页提取正文内容（仅限文本页面） |
-| `random` | 生成随机数（掷骰子、抽签等） |
-| `time` | 获取当前日期和时间 |
+| `Tavilysearch` | Web search for real-time information |
+| `extract` | Extract readable text from web pages (text-only) |
+| `random` | Generate random numbers (dice, draw lots, etc.) |
+| `time` | Get the current date and time |
 
-LLM 会根据用户问题自动决定是否调用工具，多个工具可串联使用
-（例如：搜索 → 提取网页正文 → 基于内容回答）。
+The LLM decides whether to call tools based on the user's question.
+Multiple tools can be chained (e.g., search → extract page content → answer).
 
-## 服务器白名单
+## Guild Whitelist
 
-`config/bot.yaml` 中配置 `whitelist_guilds` 字段可限制 Bot 可加入的 Discord 服务器：
+Configure `whitelist_guilds` in `config/bot.yaml` to restrict which Discord
+servers the bot can join:
 
 ```yaml
-whitelist_guilds: [123456789, 987654321]  # 允许的服务器 ID 列表
-whitelist_guilds: []                       # 空列表 = 不限制
+whitelist_guilds: [123456789, 987654321]  # Allowed guild IDs
+whitelist_guilds: []                       # Empty = no restriction
 ```
 
-配置后 Bot 会拒绝加入未在列表中的服务器。
+The bot will automatically leave any non-whitelisted guild.
 
-## 项目结构
+## Project Structure
 
 ```
 llm-discord-bot/
-├── main.py                         # 入口
-├── my_bot.py                       # Bot 实例组装
+├── main.py                         # Entry point
+├── my_bot.py                       # Bot assembly
 ├── cogs/
-│   ├── general_cog.py              # 基础命令
-│   ├── llm_cog.py                  # LLM 对话逻辑 + 频道状态管理
-│   └── guild_whitelist_cog.py      # 服务器白名单管理
+│   ├── general_cog.py              # General-purpose commands
+│   ├── llm_cog.py                  # LLM chat logic + per-channel state
+│   └── guild_whitelist_cog.py      # Guild whitelist enforcement
 ├── services/
-│   ├── chat_engine.py              # ChatEngine — 核心引擎（格式化 + 调 LLM）
-│   ├── llm.py                      # LLMClient — 底层 API 封装
-│   ├── llms.py                     # LLMClientFactory — 按 YAML 批量构建客户端
+│   ├── chat_engine.py              # ChatEngine — formatting + LLM orchestration
+│   ├── llm.py                      # LLMClient — OpenAI-compatible API wrapper
+│   ├── llms.py                     # LLMClientFactory — batch client creation
 │   └── tools/
-│       ├── registry.py             # ToolRegistry — 工具注册 & schema 生成
-│       ├── random_tool.py          # 随机数工具
-│       ├── tavily_search.py        # 联网搜索（Tavily API）
-│       ├── time_tool.py            # 时间查询
-│       └── extract_tool.py         # 网页正文提取（trafilatura）
+│       ├── registry.py             # ToolRegistry — registration & schema generation
+│       ├── random_tool.py          # Random number tool
+│       ├── tavily_search.py        # Web search (Tavily API)
+│       ├── time_tool.py            # Time query tool
+│       └── extract_tool.py         # Web content extraction (trafilatura)
 ├── utils/
-│   ├── config.py                   # 配置加载 & validate_all()
-│   └── logging.py                  # 日志设置
+│   ├── config.py                   # Config loading & validate_all()
+│   └── logging.py                  # Logging setup
 ├── config/
-│   ├── llm_base_prompt.yaml        # 系统提示词
-│   ├── llm_character.yaml          # 角色提示词（本地，gitignored）
-│   ├── llm_providers.yaml          # LLM 提供商（本地，gitignored）
-│   ├── bot.yaml                    # Bot 默认值（本地，gitignored）
+│   ├── llm_base_prompt.yaml        # System prompt
+│   ├── llm_character.yaml          # Character prompts (gitignored)
+│   ├── llm_providers.yaml          # LLM providers (gitignored)
+│   ├── bot.yaml                    # Bot defaults (gitignored)
 │   ├── llm_character.example.yaml
 │   ├── llm_providers.example.yaml
 │   ├── bot.example.yaml
