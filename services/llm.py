@@ -131,7 +131,7 @@ class LLMClient:
             messages=cast(list[ChatCompletionMessageParam], msgs),
             temperature=self.temperature,
             max_tokens=self.max_output_tokens,
-            tools=tool_registry.to_openai_schema(),
+            tools=tool_registry.to_openai_schema(strict=True),
             tool_choice="auto",
         )
         if response_format:

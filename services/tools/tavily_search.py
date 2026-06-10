@@ -88,7 +88,7 @@ _tavily = TavilySearch()
     params={
         "query": "The search query string",
         "max_results": {
-            "description": "Number of results (1–300, default 5)",
+            "description": "Number of results (1-300, default 5)",
             "default": 5,
             "minimum": 1,
             "maximum": 300,
@@ -105,7 +105,6 @@ _tavily = TavilySearch()
         },
         "time_range": {
             "description": "Time filter: 'day', 'week', 'month', 'year', or omit for any time",
-            "default": None,
             "enum": ["day", "week", "month", "year"],
         },
     },

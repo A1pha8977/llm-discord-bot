@@ -108,7 +108,33 @@ python main.py
 | `!#echo <text>` | 回声 |
 | `!#dice <n> ...` | 掷 n 面骰子 |
 | `!#whoami` | 显示你的名字 |
+| `!#clear_context` | 清除当前频道的对话上下文 |
 | `!#halt` | 关闭 Bot（仅 owner） |
+
+## 工具调用
+
+Bot 支持 LLM 自主调用以下工具获取实时数据：
+
+| 工具 | 说明 |
+|------|------|
+| `Tavilysearch` | 联网搜索获取实时信息 |
+| `extract` | 从网页提取正文内容（仅限文本页面） |
+| `random` | 生成随机数（掷骰子、抽签等） |
+| `time` | 获取当前日期和时间 |
+
+LLM 会根据用户问题自动决定是否调用工具，多个工具可串联使用
+（例如：搜索 → 提取网页正文 → 基于内容回答）。
+
+## 服务器白名单
+
+`config/bot.yaml` 中配置 `whitelist_guilds` 字段可限制 Bot 可加入的 Discord 服务器：
+
+```yaml
+whitelist_guilds: [123456789, 987654321]  # 允许的服务器 ID 列表
+whitelist_guilds: []                       # 空列表 = 不限制
+```
+
+配置后 Bot 会拒绝加入未在列表中的服务器。
 
 ## 项目结构
 
@@ -118,11 +144,18 @@ llm-discord-bot/
 ├── my_bot.py                       # Bot 实例组装
 ├── cogs/
 │   ├── general_cog.py              # 基础命令
-│   └── llm_cog.py                  # LLM 对话逻辑 + 频道状态管理
+│   ├── llm_cog.py                  # LLM 对话逻辑 + 频道状态管理
+│   └── guild_whitelist_cog.py      # 服务器白名单管理
 ├── services/
 │   ├── chat_engine.py              # ChatEngine — 核心引擎（格式化 + 调 LLM）
 │   ├── llm.py                      # LLMClient — 底层 API 封装
-│   └── llms.py                     # LLMClientFactory — 按 YAML 批量构建客户端
+│   ├── llms.py                     # LLMClientFactory — 按 YAML 批量构建客户端
+│   └── tools/
+│       ├── registry.py             # ToolRegistry — 工具注册 & schema 生成
+│       ├── random_tool.py          # 随机数工具
+│       ├── tavily_search.py        # 联网搜索（Tavily API）
+│       ├── time_tool.py            # 时间查询
+│       └── extract_tool.py         # 网页正文提取（trafilatura）
 ├── utils/
 │   ├── config.py                   # 配置加载 & validate_all()
 │   └── logging.py                  # 日志设置
@@ -134,6 +167,6 @@ llm-discord-bot/
 │   ├── llm_character_example.yaml
 │   ├── llm_providers_example.yaml
 │   ├── bot_example.yaml
-│   └── .tools.json                 # 工具定义（WIP）
+│   └── bot_whitelist_example.yaml
 └── logs/
 ```
