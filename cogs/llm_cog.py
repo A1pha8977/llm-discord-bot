@@ -8,8 +8,8 @@ import asyncio
 import logging
 from collections import deque
 
-from discord import Message
-from discord.abc import Messageable
+import discord
+from discord import Message, app_commands
 from discord.ext import commands
 
 from services.chat_engine import ChatContext, ChatEngine, ChatEngineError, ChatMessage
@@ -42,7 +42,6 @@ class LLMChatCog(commands.Cog):
         self._context_queues: dict[int, deque[ChatMessage]] = {}
         """channel_id → fixed-size message deque for LLM context."""
         self._channel_locks: dict[int, asyncio.Lock] = {}
-
 
     # ------------------------------------------------------------------
     # Queue helpers
@@ -176,7 +175,7 @@ class LLMChatCog(commands.Cog):
         )
 
     @staticmethod
-    def _channel_name(channel: Messageable) -> str:
+    def _channel_name(channel: object) -> str:
         return getattr(channel, "name", str(channel))
 
     async def _reply_in_channel(self, message: Message, text: str):
@@ -220,64 +219,89 @@ class LLMChatCog(commands.Cog):
     # Commands
     # ------------------------------------------------------------------
 
-    @commands.command()
-    async def usage(self, ctx: commands.Context):
-        """``usage`` — Displays cumulative token usage."""
-        await ctx.send(f"COMMAND:\n{self._chat_engine.get_total_usage().to_readable()}")
+    @app_commands.command(name="usage", description="Display cumulative token usage.")
+    async def usage(self, interaction: discord.Interaction):
+        await interaction.response.send_message(
+            f"COMMAND:\n{self._chat_engine.get_total_usage().to_readable()}"
+        )
 
-    @commands.command()
+    @app_commands.command(
+        name="switch_prompt",
+        description="Switch character prompt for current channel.",
+    )
+    @app_commands.describe(prompt_profile_name="Profile name (leave empty to list)")
     async def switch_prompt(
-        self, ctx: commands.Context, prompt_profile_name: str | None = None
+        self, interaction: discord.Interaction, prompt_profile_name: str | None = None
     ):
-        """``switch_prompt <profile>`` — Switches character prompt for current channel."""
         available = self._chat_engine.prompt_profile_names
         if prompt_profile_name is None:
-            await ctx.send(f"switch_prompt COMMAND:\nAvailable profiles: {available}")
+            await interaction.response.send_message(
+                f"switch_prompt COMMAND:\nAvailable profiles: {available}"
+            )
             return
         if prompt_profile_name not in available:
-            await ctx.send(
+            await interaction.response.send_message(
                 f"switch_prompt COMMAND:\n{prompt_profile_name} does not exist"
             )
             return
-        self._channel_prompt[ctx.channel.id] = prompt_profile_name
+        assert interaction.channel_id is not None
+        assert interaction.channel is not None
+        self._channel_prompt[interaction.channel_id] = prompt_profile_name
         _logger.info(
             "#%s | switch_prompt → %s",
-            self._channel_name(ctx.channel),
+            self._channel_name(interaction.channel),
             prompt_profile_name,
         )
-        await ctx.send("switch_prompt COMMAND:\nswitch prompt succeeded")
+        await interaction.response.send_message(
+            "switch_prompt COMMAND:\nswitch prompt succeeded"
+        )
 
-    @commands.command()
-    async def switch_llm(self, ctx: commands.Context, client_key: str | None = None):
-        """``!#switch_llm <client_key>`` — Switch to a different LLM provider."""
+    @app_commands.command(
+        name="switch_llm",
+        description="Switch to a different LLM provider.",
+    )
+    @app_commands.describe(client_key="LLM profile key (leave empty to list)")
+    async def switch_llm(
+        self, interaction: discord.Interaction, client_key: str | None = None
+    ):
         available_llm = self._chat_engine.llm_profile_names
         if client_key is None:
-            await ctx.send(f"switch_llm COMMAND:\nAvailable: {available_llm}")
+            await interaction.response.send_message(
+                f"switch_llm COMMAND:\nAvailable: {available_llm}"
+            )
             return
         if client_key not in available_llm:
-            await ctx.send(
+            await interaction.response.send_message(
                 f"switch_llm COMMAND:\n'{client_key}' not found. Available: {available_llm}"
             )
             return
-        self._channel_llm[ctx.channel.id] = client_key
+        assert interaction.channel_id is not None
+        assert interaction.channel is not None
+        self._channel_llm[interaction.channel_id] = client_key
         _logger.info(
-            "#%s | switch_llm → %s",
-            self._channel_name(ctx.channel),
+            "#%s | switch_llm \u2192 %s",
+            self._channel_name(interaction.channel),
             client_key,
         )
-        await ctx.send(f"switch_llm COMMAND:\nswitched to {client_key}")
+        await interaction.response.send_message(
+            f"switch_llm COMMAND:\nswitched to {client_key}"
+        )
 
-    @commands.command()
-    async def clear_context(self, ctx: commands.Context):
-        """``clear_context`` — Clears the LLM conversation context for this channel."""
-        channel_id = ctx.channel.id
+    @app_commands.command(
+        name="clear_context",
+        description="Clear the LLM conversation context for this channel.",
+    )
+    async def clear_context(self, interaction: discord.Interaction):
+        assert interaction.channel_id is not None
+        assert interaction.channel is not None
+        channel_id = interaction.channel_id
         size = len(self._context_queues.get(channel_id, ()))
         self._context_queues.pop(channel_id, None)
         _logger.info(
             "#%s | clear_context (%d messages)",
-            self._channel_name(ctx.channel),
+            self._channel_name(interaction.channel),
             size,
         )
-        await ctx.send(
+        await interaction.response.send_message(
             f"clear_context COMMAND:\nContext cleared (was {size} messages)."
         )

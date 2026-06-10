@@ -19,7 +19,7 @@ class LLMClientFactory:
     @classmethod
     def build(cls) -> dict[str, LLMClient]:
         """Build all LLMClient instances from the provider config file."""
-        llms_config = config.load_llm_providers_config()
+        llms_config = config.get_provider_configs()
         clients: dict[str, LLMClient] = {}
         for provider_name, provider_cfg in llms_config.items():
             api_key = config.get_api_key(provider_name)

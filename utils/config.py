@@ -276,6 +276,14 @@ def get_base_prompt() -> str:
     return load_base_prompt_config()["base"]
 
 
+def get_provider_configs() -> dict[str, dict]:
+    """Return provider configs from ``llm_providers.yaml``, excluding
+    metadata keys such as ``default_profile``.
+    """
+    cfg = load_llm_providers_config()
+    return {k: v for k, v in cfg.items() if k != "default_profile"}
+
+
 def get_default_llm_profile() -> str:
     """Return the default LLM profile from ``llm_providers.yaml``."""
     return load_llm_providers_config()["default_profile"]

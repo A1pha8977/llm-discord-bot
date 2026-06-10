@@ -1,6 +1,9 @@
-# Side-effect imports — register built-in tools via decorators
-import services.tools.random_tool  # noqa: F401
-import services.tools.tavily_search  # noqa: F401
-import services.tools.time_tool  # noqa: F401
-import services.tools.extract_tool  # noqa: F401
+import importlib
+from pathlib import Path
 from services.tools.registry import ToolRegistry, tool_registry
+
+# Auto-discover and register all tool modules (excludes __init__, registry, and _-prefixed files)
+_tools_dir = Path(__file__).parent
+for _f in _tools_dir.glob("*.py"):
+    if _f.stem not in ("__init__", "registry") and not _f.stem.startswith("_"):
+        importlib.import_module(f"services.tools.{_f.stem}")

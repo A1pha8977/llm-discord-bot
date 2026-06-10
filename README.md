@@ -3,7 +3,7 @@
 一个 Discord 聊天机器人，被 @ 时通过 LLM API（DeepSeek / MiMo 等 OpenAI 兼容接口）
 生成带对话上下文的回复。
 
-支持按频道热切换 LLM 模型（`!#switch_llm`）、角色扮演提示词（`!#switch_prompt`）。
+支持按频道热切换 LLM 模型（`/switch_llm`）、角色扮演提示词（`/switch_prompt`）。
 
 ## 前置条件
 
@@ -99,17 +99,17 @@ python main.py
 | 命令 | 说明 |
 |------|------|
 | `@bot <message>` | 与 LLM 对话 |
-| `!#switch_llm <key>` | 切换当前频道使用的 LLM 模型 |
-| `!#switch_llm` | 列出可用的 LLM 模型 |
-| `!#switch_prompt <profile>` | 切换当前频道的角色扮演 |
-| `!#switch_prompt` | 列出可用的角色预设 |
-| `!#usage` | 查看累计 token 使用量 |
-| `!#ping` | 返回服务器时间 |
-| `!#echo <text>` | 回声 |
-| `!#dice <n> ...` | 掷 n 面骰子 |
-| `!#whoami` | 显示你的名字 |
-| `!#clear_context` | 清除当前频道的对话上下文 |
-| `!#halt` | 关闭 Bot（仅 owner） |
+| `/switch_llm <key>` | 切换当前频道使用的 LLM 模型 |
+| `/switch_llm` | 列出可用的 LLM 模型 |
+| `/switch_prompt <profile>` | 切换当前频道的角色扮演 |
+| `/switch_prompt` | 列出可用的角色预设 |
+| `/usage` | 查看累计 token 使用量 |
+| `/ping` | 返回服务器时间 |
+| `/echo <text>` | 回声 |
+| `/dice <n> ...` | 掷 n 面骰子 |
+| `/whoami` | 显示你的名字 |
+| `/clear_context` | 清除当前频道的对话上下文 |
+| `/halt` | 关闭 Bot（仅 owner） |
 
 ## 工具调用
 
