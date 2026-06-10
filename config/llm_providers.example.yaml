@@ -1,6 +1,8 @@
 # LLM provider configuration template. Copy to llm_providers.yaml and customize.
 # config/llm_providers.yaml is gitignored and not shared between deployments.
 
+default_profile: deepseek-creative # {provider}-{profile} key
+
 deepseek:
     base_url: https://api.deepseek.com
     profiles:

@@ -3,6 +3,8 @@
 # Each key is a profile name used by `!#switch_prompt <profile>`.
 # The "default" key is used when no profile is specified.
 
+default_profile: default
+
 default: |
     # Identity
     You are operated by XXXXX.

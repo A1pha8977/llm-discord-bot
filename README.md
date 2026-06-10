@@ -59,7 +59,7 @@ API key 按提供商名大写加 `_API_KEY` 后缀。例：`deepseek` → `DEEPS
 定义 LLM 提供商及模型参数（base_url、model_name、temperature 等）。
 
 ```bash
-cp config/llm_providers_example.yaml config/llm_providers.yaml
+cp config/llm_providers.example.yaml config/llm_providers.yaml
 # 编辑 llm_providers.yaml
 ```
 
@@ -68,7 +68,7 @@ cp config/llm_providers_example.yaml config/llm_providers.yaml
 定义角色扮演提示词（按频道切换）。
 
 ```bash
-cp config/llm_character_example.yaml config/llm_character.yaml
+cp config/llm_character.example.yaml config/llm_character.yaml
 # 编辑 llm_character.yaml
 ```
 
@@ -77,12 +77,12 @@ cp config/llm_character_example.yaml config/llm_character.yaml
 Bot 全局默认值。
 
 ```bash
-cp config/bot_example.yaml config/bot.yaml
+cp config/bot.example.yaml config/bot.yaml
 # 编辑 bot.yaml
 ```
 
 > `llm_providers.yaml`、`llm_character.yaml`、`bot.yaml` 被 `.gitignore` 忽略，
-> 不进入版本控制。每个部署环境需从 `_example.yaml` 复制后独立配置。
+> 不进入版本控制。每个部署环境需从 `.example.yaml` 复制后独立配置。
 
 ### 5. （可选）编辑 `config/llm_base_prompt.yaml`
 
@@ -164,9 +164,9 @@ llm-discord-bot/
 │   ├── llm_character.yaml          # 角色提示词（本地，gitignored）
 │   ├── llm_providers.yaml          # LLM 提供商（本地，gitignored）
 │   ├── bot.yaml                    # Bot 默认值（本地，gitignored）
-│   ├── llm_character_example.yaml
-│   ├── llm_providers_example.yaml
-│   ├── bot_example.yaml
-│   └── bot_whitelist_example.yaml
+│   ├── llm_character.example.yaml
+│   ├── llm_providers.example.yaml
+│   ├── bot.example.yaml
+│   └── bot_whitelist.example.yaml
 └── logs/
 ```

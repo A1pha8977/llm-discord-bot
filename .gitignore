@@ -15,10 +15,9 @@ __pycache__/
 
 
 # Project local overrides (not versioned)
-config/llm_character.yaml
-config/bot_whitelist.yaml
-config/bot.yaml
-config/llm_providers.yaml
+config/*.yaml
+!config/*.example.yaml
+!config/llm_base_prompt.yaml
 
 # Logs
 logs/

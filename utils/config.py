@@ -128,29 +128,16 @@ def _validate_base_prompt(cfg: dict) -> None:
 def _validate_character_prompt(cfg: dict) -> None:
     if not cfg:
         raise ConfigParseError("No content found")
-    # allow empty profile
+    if "default_profile" not in cfg:
+        raise ConfigParseError("Missing 'default_profile' key")
+    dp = cfg["default_profile"]
+    if dp not in cfg:
+        raise ConfigParseError(
+            f"default_profile '{dp}' not found in character profiles"
+        )
 
 
 def _validate_bot(cfg: dict) -> None:
-    if "defaults" not in cfg:
-        raise ConfigParseError("Missing 'defaults' section")
-    defaults = cfg["defaults"]
-    for key in ("llm_profile", "prompt_profile"):
-        if key not in defaults:
-            raise ConfigParseError(f"Missing 'defaults.{key}'")
-
-    default_llm = defaults["llm_profile"]
-    default_prompt = defaults["prompt_profile"]
-
-    if default_llm not in get_llm_profile_names():
-        raise ConfigParseError(
-            f"Default llm_profile '{default_llm}' not found in providers config"
-        )
-    if default_prompt not in get_character_prompt_names():
-        raise ConfigParseError(
-            f"Default prompt_profile '{default_prompt}' not found in character config"
-        )
-
     wl = cfg.get("whitelist_guilds", [])
     if not isinstance(wl, list):
         raise ConfigParseError("'whitelist_guilds' must be a list")
@@ -162,7 +149,14 @@ def _validate_bot(cfg: dict) -> None:
 def _validate_llm_providers(cfg: dict) -> None:
     if not cfg:
         raise ConfigParseError("No providers configured")
+    if "default_profile" not in cfg:
+        raise ConfigParseError("Missing 'default_profile' key")
+    dp = cfg["default_profile"]
+    if not isinstance(dp, str):
+        raise ConfigParseError("'default_profile' must be a string")
     for name, provider in cfg.items():
+        if name == "default_profile":
+            continue
         for field in ("base_url", "profiles"):
             if field not in provider:
                 raise ConfigParseError(f"Missing '{field}' for provider '{name}'")
@@ -201,6 +195,16 @@ def _validate_llm_providers(cfg: dict) -> None:
                     raise ConfigParseError(
                         f"'max_output_tokens' for '{name}.{profile_name}' must be >= 1"
                     )
+    valid_profiles = set()
+    for name, provider in cfg.items():
+        if name == "default_profile":
+            continue
+        for pname in provider.get("profiles", {}):
+            valid_profiles.add(f"{name}-{pname}")
+    if dp not in valid_profiles:
+        raise ConfigParseError(
+            f"default_profile '{dp}' not found in providers"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -235,7 +239,8 @@ def load_llm_providers_config(
 
 def get_character_prompt_names() -> set[str]:
     """All available character prompt profile names."""
-    return set(load_character_prompt_config().keys())
+    cfg = load_character_prompt_config()
+    return {k for k in cfg if k != "default_profile"}
 
 
 def get_character_prompt_text(profile_name: str | None = None) -> str:
@@ -254,6 +259,8 @@ def get_llm_profile_names() -> set[str]:
     cfg = load_llm_providers_config()
     keys: set[str] = set()
     for provider_name, provider_cfg in cfg.items():
+        if provider_name == "default_profile":
+            continue
         for profile_name in provider_cfg.get("profiles", {}):
             keys.add(f"{provider_name}-{profile_name}")
     return keys
@@ -270,13 +277,14 @@ def get_base_prompt() -> str:
 
 
 def get_default_llm_profile() -> str:
-    """Return the default LLM profile from ``bot.yaml``."""
-    return load_bot_config()["defaults"]["llm_profile"]
+    """Return the default LLM profile from ``llm_providers.yaml``."""
+    return load_llm_providers_config()["default_profile"]
 
 
 def get_default_prompt_profile() -> str:
-    """Return the default character prompt profile from ``bot.yaml``."""
-    return load_bot_config()["defaults"]["prompt_profile"]
+    """Return the default character prompt profile from
+    ``llm_character.yaml``."""
+    return load_character_prompt_config()["default_profile"]
 
 
 def get_whitelist_guilds() -> set[int]:
