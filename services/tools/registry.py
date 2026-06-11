@@ -2,7 +2,7 @@ import inspect
 import logging
 from collections.abc import Callable
 from types import UnionType
-from typing import Union, get_args, get_origin
+from typing import Union, cast, get_origin
 
 _logger = logging.getLogger(__name__)
 
@@ -32,17 +32,13 @@ _VALID_PARAM_KEYS: dict[str, frozenset[str]] = {
 def _get_json_type(annotation: type) -> str | None:
     """Resolve a Python type annotation to a JSON Schema type string.
 
-    Handles ``Optional`` / ``X | None`` by extracting the non-None
-    type.  Handles generic types like ``list[str]`` by resolving the
-    origin.  Complex unions (e.g. ``str | int``) return ``None`` —
-    ``anyOf`` schemas are intentionally not supported.
+    Handles generic types like ``list[str]`` by resolving the
+    origin.  ``Optional``, ``Union`` types, and complex unions
+    return ``None`` — ``anyOf`` schemas are intentionally not
+    supported.
     """
     origin = get_origin(annotation)
-    if origin is not None and origin in (Union, UnionType):
-        args = get_args(annotation)
-        non_none = [a for a in args if a is not type(None)]
-        if len(non_none) == 1:
-            return _TYPE_MAP.get(non_none[0])
+    if origin in (Union, UnionType):
         return None
     if origin is not None:
         return _TYPE_MAP.get(origin)
@@ -52,10 +48,10 @@ def _get_json_type(annotation: type) -> str | None:
 class ToolRegistry:
     """Registry of callable tools with OpenAI/DeepSeek schema generation.
 
-    Supported parameter types: ``int``, ``str``, ``float``, ``bool``,
-    ``list``, and their ``Optional`` variants (``X | None``).
-    Complex union types (``str | int``) and ``anyOf`` schemas
-    are intentionally not supported.
+    Supported parameter types: ``int``, ``str``, ``float``, ``bool``, ``list``.
+
+    Complex union types (``str | int``), ``Optional``, and
+    ``anyOf`` schemas are intentionally not supported.
     """
 
     def __init__(self):
@@ -95,7 +91,12 @@ class ToolRegistry:
             if _name in self._tools:
                 raise ValueError(f"Tool '{_name}' is already registered")
 
-            self._check_params(_name, func, params)
+            # Normalize str values to dict for uniform validation and schema generation.
+            for k, v in params.items():
+                if isinstance(v, str):
+                    params[k] = {"description": v}
+
+            self._check_params(_name, func, cast(dict[str, dict], params))
 
             self._tools[_name] = (
                 func,
@@ -114,6 +115,7 @@ class ToolRegistry:
         try:
             fn, _ = self._tools[name]
         except KeyError:
+            _logger.error('Calling unknown tool "%s" with args: %s', name, args)
             return {
                 "role": "tool",
                 "tool_call_id": tool_call_id,
@@ -127,6 +129,7 @@ class ToolRegistry:
             bound.apply_defaults()
             result = str(fn(**bound.arguments))
         except TypeError as e:
+            _logger.error('Calling tool "%s" with unexpected args: %s', name, args)
             return {
                 "role": "tool",
                 "tool_call_id": tool_call_id,
@@ -176,7 +179,7 @@ class ToolRegistry:
     # --- Internal ---
 
     @staticmethod
-    def _check_params(name: str, fn: Callable, declared: dict[str, str | dict]) -> None:
+    def _check_params(name: str, fn: Callable, declared: dict[str, dict]) -> None:
         """Validate that *declared* names match *fn*'s signature and
         all parameter types are supported.  Delegates each
         ``dict``-style entry to :meth:`_validate_param_schema`."""
@@ -196,19 +199,10 @@ class ToolRegistry:
                 f"Tool '{name}': missing descriptions for parameters: {missing}"
             )
 
-        for param_name, param_desc in declared.items():
-            if isinstance(param_desc, dict):
-                ToolRegistry._validate_param_schema(
-                    name, param_name, sig.parameters[param_name], param_desc
-                )
-
         for param_name, param in sig.parameters.items():
-            if _get_json_type(param.annotation) is None:
-                raise ValueError(
-                    f"Tool '{name}': parameter '{param_name}' has "
-                    f"unsupported type '{param.annotation}'. "
-                    f"Supported: int, str, float, bool, list."
-                )
+            ToolRegistry._validate_param_schema(
+                name, param_name, param, declared[param_name]
+            )
 
     @staticmethod
     def _validate_param_schema(
@@ -244,9 +238,17 @@ class ToolRegistry:
                 )
 
         json_type = param_desc.get("type") or _get_json_type(param.annotation)
-        assert json_type is not None, (
-            f"Tool '{name}': param '{param_name}' has unresolved JSON type"
-        )
+        if json_type is None:
+            hint = (
+                " Optional types are not supported."
+                if get_origin(param.annotation) in (Union, UnionType)
+                else ""
+            )
+            raise ValueError(
+                f"Tool '{name}': param '{param_name}' has unsupported type"
+                f" '{param.annotation}'."
+                f" Supported: int, str, float, bool, list.{hint}"
+            )
         for key in param_desc:
             if key == "type":
                 continue
@@ -263,7 +265,7 @@ class ToolRegistry:
     @staticmethod
     def _build_openai_params(
         fn: Callable,
-        param_specs: dict[str, str | dict],
+        param_specs: dict[str, dict],
         *,
         strict: bool = False,
     ) -> dict:
@@ -271,11 +273,8 @@ class ToolRegistry:
 
         Args:
             fn: The registered tool function.
-            param_specs: Map of parameter names to descriptions
-                (``str``) or rich JSON Schema partials (``dict``).
-                ``str`` values become ``{"type", "description"}``;
-                ``dict`` values carry extra constraints (``enum``,
-                ``minimum``, etc.).
+            param_specs: Map of parameter names to dict partials
+                carrying constraints (``enum``, ``minimum``, etc.).
             strict: When ``True``, all properties are marked required
                 and ``additionalProperties`` is set to ``false``.
 
@@ -293,13 +292,10 @@ class ToolRegistry:
                 f"Internal: param '{pname}' has unresolved JSON type"
             )
             desc = param_specs[pname]
-            if isinstance(desc, str):
-                properties[pname] = {"type": json_type, "description": desc}
-            else:
-                properties[pname] = {
-                    "type": desc.get("type", json_type),
-                    **{k: v for k, v in desc.items() if k != "type"},
-                }
+            properties[pname] = {
+                "type": desc.get("type", json_type),
+                **{k: v for k, v in desc.items() if k != "type"},
+            }
             if param.default is inspect.Parameter.empty:
                 required.append(pname)
 

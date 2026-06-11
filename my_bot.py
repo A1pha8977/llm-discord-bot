@@ -11,7 +11,6 @@ import discord
 from discord.ext import commands
 
 from services.chat_engine import ChatEngine
-from utils import config
 
 import logging
 
@@ -19,12 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class MyBot(commands.Bot):
-    """Discord bot with LLM chat capabilities and slash commands.
-
-    Args:
-        command_prefix: Command prefix string (set to ``'!#'``).
-        intents: Discord gateway intents (``message_content`` required).
-    """
+    """Discord bot with LLM chat capabilities and slash commands."""
 
     def __init__(self):
         """Initialize the bot with default intents."""

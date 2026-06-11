@@ -1,8 +1,7 @@
 """Discord Cog for LLM-powered chat replies with per-channel character prompts
 and runtime LLM provider switching."""
 
-from discord.ext.commands.bot import Bot
-
+from discord.ext import commands
 
 import asyncio
 import logging
@@ -10,8 +9,6 @@ from collections import deque
 
 import discord
 from discord import Message, app_commands
-from discord.ext import commands
-
 from services.chat_engine import ChatContext, ChatEngine, ChatEngineError, ChatMessage
 from services.llm import TokenUsage
 
@@ -35,12 +32,12 @@ class LLMChatCog(commands.Cog):
         discord_bot: commands.Bot,
         chat_engine: ChatEngine,
     ):
-        self._discord_bot: Bot = discord_bot
+        self._discord_bot: commands.Bot = discord_bot
         self._chat_engine: ChatEngine = chat_engine
         self._channel_prompt: dict[int, str] = {}
         self._channel_llm: dict[int, str] = {}
+        # channel_id -> fixed-size message deque for LLM context.
         self._context_queues: dict[int, deque[ChatMessage]] = {}
-        """channel_id → fixed-size message deque for LLM context."""
         self._channel_locks: dict[int, asyncio.Lock] = {}
 
     # ------------------------------------------------------------------

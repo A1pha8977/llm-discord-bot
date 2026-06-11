@@ -33,9 +33,9 @@ class GeneralCog(commands.Cog):
     @app_commands.command(
         name="dice", description="Roll dice with the given number of faces."
     )
-    @app_commands.describe(arg='Dice faces, e.g. "6" or "6 20 100"')
-    async def dice(self, interaction: discord.Interaction, arg: str = "6"):
-        args = arg.split()
+    @app_commands.describe(faces='Dice faces, e.g. "6" or "6 20 100"')
+    async def dice(self, interaction: discord.Interaction, faces: str = "6"):
+        args = faces.split()
         results: list[int] = []
         for i in args:
             if not (i.isdigit() and int(i) >= 1):

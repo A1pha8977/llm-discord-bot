@@ -17,7 +17,7 @@ class TavilySearch:
         max_results: int = 5,
         search_depth: str = "basic",
         topic: str = "general",
-        time_range: str | None = None,
+        time_range: str = "",
     ) -> str:
         """Execute a web search and return formatted plain-text results.
 
@@ -114,7 +114,7 @@ def web_search(
     max_results: int = 5,
     search_depth: str = "basic",
     topic: str = "general",
-    time_range: str | None = None,
+    time_range: str = "",
 ) -> str:
     """Search the web via Tavily and return plain-text results."""
     return _tavily.search(query, max_results, search_depth, topic, time_range)

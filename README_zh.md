@@ -1,3 +1,5 @@
+[English](README.md) | [简体中文](README_zh.md)
+
 # llm-discord-bot
 
 一个 Discord 聊天机器人，被 @ 时通过 LLM API（DeepSeek / MiMo 等 OpenAI 兼容接口）
@@ -38,6 +40,12 @@ source .venv/bin/activate
 
 ```bash
 pip install -r requirements.txt
+```
+
+开发依赖（包含 linter、类型检查器）：
+
+```bash
+pip install -r requirements-dev.txt
 ```
 
 ## 配置
@@ -140,6 +148,8 @@ whitelist_guilds: []                       # 空列表 = 不限制
 
 ```
 llm-discord-bot/
+├── requirements.txt                # 运行时依赖
+├── requirements-dev.txt            # 开发依赖
 ├── main.py                         # 入口
 ├── my_bot.py                       # Bot 实例组装
 ├── cogs/
@@ -159,6 +169,9 @@ llm-discord-bot/
 ├── utils/
 │   ├── config.py                   # 配置加载 & validate_all()
 │   └── logging.py                  # 日志设置
+├── tests/
+│   ├── test_registry.py            # ToolRegistry 单元测试
+│   └── test_chat_engine.py         # ChatContext & ChatMessage 单元测试
 ├── config/
 │   ├── llm_base_prompt.yaml        # 系统提示词
 │   ├── llm_character.yaml          # 角色提示词（本地，gitignored）

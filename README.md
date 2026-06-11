@@ -43,6 +43,12 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+For development (includes linter, type checker):
+
+```bash
+pip install -r requirements-dev.txt
+```
+
 ## Configuration
 
 All configuration files are validated by `validate_all()` at startup.
@@ -147,6 +153,8 @@ The bot will automatically leave any non-whitelisted guild.
 
 ```
 llm-discord-bot/
+├── requirements.txt                # Runtime dependencies
+├── requirements-dev.txt            # Development dependencies
 ├── main.py                         # Entry point
 ├── my_bot.py                       # Bot assembly
 ├── cogs/
@@ -166,6 +174,9 @@ llm-discord-bot/
 ├── utils/
 │   ├── config.py                   # Config loading & validate_all()
 │   └── logging.py                  # Logging setup
+├── tests/
+│   ├── test_registry.py            # ToolRegistry unit tests
+│   └── test_chat_engine.py         # ChatContext & ChatMessage unit tests
 ├── config/
 │   ├── llm_base_prompt.yaml        # System prompt
 │   ├── llm_character.yaml          # Character prompts (gitignored)
