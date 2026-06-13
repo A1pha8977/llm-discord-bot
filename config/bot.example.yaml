@@ -2,3 +2,11 @@
 # config/bot.yaml is gitignored and not shared between deployments.
 
 whitelist_guilds: [] # list[int], empty = allow all
+
+# Optional: enable/disable specific LLM tools.
+# When omitted (or empty), all tools are enabled by default.
+# enabled_tools:
+#   Tavilysearch: true
+#   extract: true
+#   random: true
+#   time: false

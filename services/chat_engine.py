@@ -45,10 +45,16 @@ class ChatMessage:
 
 
 class ChatContext:
-    """Manages a sequential chat conversation context."""
+    """Manages a sequential chat conversation context.
 
-    def __init__(self):
-        self._messages: list[ChatMessage] = []
+    Args:
+        messages: Optional initial messages. A shallow copy is made so
+            mutations to the original list after construction do not
+            affect the context.
+    """
+
+    def __init__(self, messages: list[ChatMessage] | None = None):
+        self._messages: list[ChatMessage] = list(messages) if messages else []
 
     def add(self, msg: ChatMessage) -> None:
         """Append a message to the context."""

@@ -7,14 +7,16 @@ import sys
 
 
 def setup(level: int = logging.INFO):
-    """Configure root logger with a TimedRotatingFileHandler.
+    """Configure root logger with file + console handlers.
 
     Creates the ``logs/`` directory relative to the project root.  Log files
     rotate at midnight and are kept for 30 days.  ``discord``, ``asyncio``,
     and ``httpx`` loggers are suppressed to ``WARNING`` to reduce noise.
 
+    Console output is fixed at ``WARNING``; file output respects *level*.
+
     Args:
-        level: Root logger level (default ``logging.INFO``).
+        level: File handler level (default ``logging.INFO``).
     """
     root = logging.getLogger()
     if root.handlers:
@@ -45,6 +47,13 @@ def setup(level: int = logging.INFO):
 
     root.setLevel(level)
     root.addHandler(handler)
+
+    console = logging.StreamHandler(sys.stdout)
+    console.setLevel(logging.WARNING)
+    console.setFormatter(logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    ))
+    root.addHandler(console)
 
     logging.getLogger("discord").setLevel(logging.WARNING)
     logging.getLogger("asyncio").setLevel(logging.WARNING)

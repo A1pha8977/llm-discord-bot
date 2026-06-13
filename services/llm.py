@@ -47,7 +47,7 @@ class LLMClient:
         model_name: str,
         *,
         temperature: float = 0.7,
-        max_output_tokens: int = 300,
+        max_output_tokens: int = 3000,
     ):
         self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
         self._model_name = model_name

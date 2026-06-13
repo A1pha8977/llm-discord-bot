@@ -85,11 +85,24 @@ cp config/llm_character.example.yaml config/llm_character.yaml
 
 ### 4. Create `config/bot.yaml`
 
-Bot global defaults.
+Bot global defaults, including optional per-tool enable/disable.
 
 ```bash
 cp config/bot.example.yaml config/bot.yaml
 # Edit bot.yaml
+```
+
+Optional `enabled_tools` field — a mapping of tool name to `true`/`false`.
+Only tools listed with `true` are available to the LLM; unlisted or
+`false` tools are hidden from the LLM entirely.  Omit the key to keep
+all tools enabled.
+
+```yaml
+enabled_tools:
+  Tavilysearch: true   # web search enabled
+  extract: true         # web content extraction enabled
+  random: false         # random number tool disabled
+  time: true            # time tool enabled
 ```
 
 > `llm_providers.yaml`, `llm_character.yaml`, and `bot.yaml` are gitignored.
@@ -136,6 +149,10 @@ The LLM can autonomously invoke the following tools for real-time data:
 
 The LLM decides whether to call tools based on the user's question.
 Multiple tools can be chained (e.g., search → extract page content → answer).
+
+Individual tools can be disabled via `enabled_tools` in
+`config/bot.yaml`.  Disabled tools are hidden from the LLM and won't
+appear in the schema.
 
 ## Guild Whitelist
 

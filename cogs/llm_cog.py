@@ -85,8 +85,9 @@ class LLMChatCog(commands.Cog):
     async def on_mention(self, message: Message):
         """Handle an @mention by generating and dispatching an LLM reply.
 
-        Serialized per-channel via :attr:`_channel_locks` to prevent
-        out-of-order replies when multiple mentions arrive concurrently.
+        Context is snapshotted under lock, then the LLM call runs without
+        holding the lock so that incoming messages are not blocked.  The
+        bot reply is enqueued and sent under lock to prevent interleaving.
         """
         _logger.info(
             "[%s] | #%s | triggered by @%s",
@@ -98,8 +99,13 @@ class LLMChatCog(commands.Cog):
         channel_id: int = message.channel.id
         lock = self._channel_locks.setdefault(channel_id, asyncio.Lock())
 
-        async with lock, message.channel.typing():
-            text, usage = await self._generate_reply(channel_id)
+        async with lock:
+            context = ChatContext(self._queue_get(channel_id))
+
+        async with message.channel.typing():
+            text, usage = await self._generate_reply(context, channel_id)
+
+        async with lock:
             self._enqueue_bot_reply(channel_id, text, usage)
             await self._reply_in_channel(message, text or "...")
 
@@ -110,15 +116,14 @@ class LLMChatCog(commands.Cog):
             usage,
         )
 
-    async def _generate_reply(self, channel_id: int) -> tuple[str, TokenUsage]:
-        """Build context from the queue, call the LLM, return (text, usage).
+    async def _generate_reply(
+        self, context: ChatContext, channel_id: int
+    ) -> tuple[str, TokenUsage]:
+        """Call the LLM with *context* pre-built by the caller.
 
         On ``ChatEngineError``, returns an error string prefixed with
         ``"LLM API ERROR:"`` and a zero ``TokenUsage``.
         """
-        context = ChatContext()
-        context.extend(self._queue_get(channel_id))
-
         try:
             return await self._chat_engine.respond(
                 context,
@@ -166,8 +171,9 @@ class LLMChatCog(commands.Cog):
             channel_id,
             ChatMessage(
                 role="user",
-                content=message.content,
+                content=message.clean_content,
                 name=message.author.display_name,
+                timestamp=message.created_at.astimezone().strftime("%H:%M"),
             ),
         )
 
@@ -192,11 +198,16 @@ class LLMChatCog(commands.Cog):
                 await message.channel.send(chunk)
 
     @staticmethod
-    def _split_long_text(text: str, max_len: int = 1000) -> list[str]:
+    def _split_long_text(text: str, max_len: int = 1980) -> list[str]:
         """Split *text* into chunks no longer than *max_len*.
 
-        Prefers splitting at newline boundaries.  When no good boundary
-        exists within the limit, falls back to a hard cut at *max_len*.
+        Prefers splitting at newline boundaries.  When a split point
+        would land inside a Markdown code fence (`` ``` ``), the split is
+        moved before the opening fence to keep the block intact — unless
+        the block itself exceeds *max_len*, in which case the split is
+        allowed inside.
+
+        Falls back to a hard cut when no good boundary exists.
         """
         if len(text) <= max_len:
             return [text]
@@ -206,6 +217,14 @@ class LLMChatCog(commands.Cog):
             split_at = text.rfind("\n", 0, max_len)
             if split_at == -1 or split_at < max_len // 2:
                 split_at = max_len
+
+            fence_count = text[:split_at].count("```")
+            if fence_count % 2 != 0:
+                opening = text.rfind("```", 0, split_at)
+                if opening != -1:
+                    closing = text.find("```", opening + 3)
+                    if closing != -1 and (closing + 3 - opening) <= max_len:
+                        split_at = opening
             chunks.append(text[:split_at])
             text = text[split_at:].lstrip("\n")
         if text:
@@ -245,7 +264,7 @@ class LLMChatCog(commands.Cog):
         assert interaction.channel is not None
         self._channel_prompt[interaction.channel_id] = prompt_profile_name
         _logger.info(
-            "#%s | switch_prompt → %s",
+            "#%s | switch_prompt -> %s",
             self._channel_name(interaction.channel),
             prompt_profile_name,
         )

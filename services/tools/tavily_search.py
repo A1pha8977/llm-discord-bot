@@ -71,7 +71,19 @@ class TavilySearch:
             return f"Search API error: {type(e).__name__}: {e}"
 
 
-_tavily = TavilySearch()
+_tavily: TavilySearch | None = None
+
+
+def _get_tavily() -> TavilySearch:
+    """Lazy-load the TavilySearch singleton on first use.
+
+    This avoids reading ``TAVILY_API_KEY`` from ``.env`` at import time.
+    Only when the LLM actually invokes the tool does the API key get read.
+    """
+    global _tavily
+    if _tavily is None:
+        _tavily = TavilySearch()
+    return _tavily
 
 
 @tool_registry.register(
@@ -117,4 +129,4 @@ def web_search(
     time_range: str = "",
 ) -> str:
     """Search the web via Tavily and return plain-text results."""
-    return _tavily.search(query, max_results, search_depth, topic, time_range)
+    return _get_tavily().search(query, max_results, search_depth, topic, time_range)

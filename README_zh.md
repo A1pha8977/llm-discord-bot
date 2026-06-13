@@ -82,11 +82,23 @@ cp config/llm_character.example.yaml config/llm_character.yaml
 
 ### 4. 创建 `config/bot.yaml`
 
-Bot 全局默认值。
+Bot 全局默认值，包含可选的单工具启用/禁用配置。
 
 ```bash
 cp config/bot.example.yaml config/bot.yaml
 # 编辑 bot.yaml
+```
+
+可选字段 `enabled_tools` — 工具名到 `true`/`false` 的映射。只有标记为
+`true` 的工具才会对 LLM 可见；未列出或为 `false` 的工具将被完全隐藏。
+省略此字段则所有工具默认启用。
+
+```yaml
+enabled_tools:
+  Tavilysearch: true   # 启用联网搜索
+  extract: true         # 启用网页提取
+  random: false         # 禁用随机数工具
+  time: true            # 启用时间工具
 ```
 
 > `llm_providers.yaml`、`llm_character.yaml`、`bot.yaml` 被 `.gitignore` 忽略，
@@ -132,6 +144,9 @@ Bot 支持 LLM 自主调用以下工具获取实时数据：
 
 LLM 会根据用户问题自动决定是否调用工具，多个工具可串联使用
 （例如：搜索 → 提取网页正文 → 基于内容回答）。
+
+各个工具可通过 `config/bot.yaml` 中的 `enabled_tools` 单独禁用。
+禁用的工具对 LLM 不可见，不会出现在 schema 中。
 
 ## 服务器白名单
 

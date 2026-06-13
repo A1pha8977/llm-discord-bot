@@ -109,7 +109,7 @@ def _load_from_dotenv(key: str) -> str:
         _dotenv_loaded = True
     v = os.getenv(key)
     if v is None:
-        raise ValueError(f"Missing {key} in .env")
+        raise ValueError(f"{key} not found in environment variables or .env file")
     return v
 
 
@@ -144,6 +144,14 @@ def _validate_bot(cfg: dict) -> None:
     for gid in wl:
         if not isinstance(gid, int):
             raise ConfigParseError(f"whitelist_guilds: {gid} must be an integer")
+
+    et = cfg.get("enabled_tools")
+    if et is not None:
+        if not isinstance(et, dict):
+            raise ConfigParseError("'enabled_tools' must be a mapping of tool_name: bool")
+        for k, v in et.items():
+            if not isinstance(v, bool):
+                raise ConfigParseError(f"enabled_tools.{k} must be true or false")
 
 
 def _validate_llm_providers(cfg: dict) -> None:
@@ -303,8 +311,46 @@ def get_whitelist_guilds() -> set[int]:
     return set[int](load_bot_config().get("whitelist_guilds", []))
 
 
+def get_enabled_tools() -> dict[str, bool]:
+    """Return the enabled_tools mapping from ``bot.yaml``.
+
+    Returns an empty dict when the key is absent (meaning: all tools
+    enabled).  When present, only tools mapped to ``True`` are enabled.
+    """
+    et = load_bot_config().get("enabled_tools")
+    return et if isinstance(et, dict) else {}
+
+
 def get_api_key(provider_name: str) -> str:
     return _load_from_dotenv(provider_name.upper() + "_API_KEY")
+
+
+# Maps tool name to the env var suffix used by get_api_key().
+# NOTE: Keys must match the tool name used in ToolRegistry.register().
+# Add an entry whenever a new tool requires an API key.
+_TOOL_API_KEY_MAP: dict[str, str] = {
+    "Tavilysearch": "TAVILY",
+}
+
+
+def validate_tool_api_keys() -> None:
+    """Validate API keys only for tools that are currently enabled.
+
+    Skips tools disabled via ``enabled_tools`` in ``bot.yaml``.
+    Raises ``ValueError`` when an enabled tool's API key is missing
+    from ``.env``, with the tool name included in the message.
+    """
+    enabled = get_enabled_tools()
+    for tool_name, provider_name in _TOOL_API_KEY_MAP.items():
+        # enabled is empty → all tools enabled → check all
+        # enabled is non-empty → only check tools with True
+        if not enabled or enabled.get(tool_name) is True:
+            try:
+                get_api_key(provider_name)
+            except ValueError as e:
+                raise ValueError(
+                    f"Tool '{tool_name}' is enabled but {e}"
+                ) from e
 
 
 # ---------------------------------------------------------------------------
@@ -322,3 +368,4 @@ def validate_all() -> None:
     for name in sorted(dir(module)):
         if name.startswith("load_") and name.endswith("_config"):
             getattr(module, name)()
+    validate_tool_api_keys()

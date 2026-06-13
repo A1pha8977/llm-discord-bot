@@ -4,6 +4,8 @@ from collections.abc import Callable
 from types import UnionType
 from typing import Union, cast, get_origin
 
+from utils import config
+
 _logger = logging.getLogger(__name__)
 
 _TYPE_MAP = {
@@ -57,6 +59,22 @@ class ToolRegistry:
     def __init__(self):
         self._tools: dict[str, tuple[Callable[..., object], dict]] = {}
         # key=name → (func, info: {description, params})
+        self._enabled_tools: dict[str, bool] | None = None
+        # None = no filter (all enabled); non-empty dict = only True-valued keys enabled
+
+    def set_enabled_tools(self, enabled_dict: dict[str, bool]) -> None:
+        """Apply a tool enable/disable filter from config.
+
+        When *enabled_dict* is non-empty, only tools whose name maps to
+        ``True`` are considered enabled.  Tools not in the dict or mapped
+        to ``False`` are excluded from schema output and will be rejected
+        at execution time.
+
+        Args:
+            enabled_dict: Mapping of tool name to bool, e.g.
+                ``{"random": True, "time": False}``.
+        """
+        self._enabled_tools = enabled_dict
 
     def register(
         self,
@@ -112,6 +130,16 @@ class ToolRegistry:
         On error, returns a tool response with ``content`` starting with
         ``"Error:"`` so the LLM can read the problem and retry.
         """
+        if self._enabled_tools is not None and self._enabled_tools.get(name) is not True:
+            _logger.error(
+                'LLM attempted to call disabled tool "%s" with args: %s', name, args
+            )
+            return {
+                "role": "tool",
+                "tool_call_id": tool_call_id,
+                "content": f"Error: unknown tool '{name}'",
+            }
+
         try:
             fn, _ = self._tools[name]
         except KeyError:
@@ -161,6 +189,8 @@ class ToolRegistry:
         """
         result: list[dict] = []
         for name, (fn, info) in self._tools.items():
+            if self._enabled_tools is not None and self._enabled_tools.get(name) is not True:
+                continue
             func_def: dict = {
                 "name": name,
                 "description": info["description"],
@@ -174,6 +204,8 @@ class ToolRegistry:
         return result
 
     def __contains__(self, name: str) -> bool:
+        if self._enabled_tools is not None and self._enabled_tools.get(name) is not True:
+            return False
         return name in self._tools
 
     # --- Internal ---
@@ -311,3 +343,7 @@ class ToolRegistry:
 
 
 tool_registry = ToolRegistry()
+
+_enabled = config.get_enabled_tools()
+if _enabled:
+    tool_registry.set_enabled_tools(_enabled)

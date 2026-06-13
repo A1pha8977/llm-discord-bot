@@ -10,8 +10,9 @@ from services.tools.registry import tool_registry
         "Call this BEFORE answering any time-sensitive question — "
         "you have no inherent knowledge of the current date. "
         "Returns a full date-time string like "
-        "\"Thu Jun  5 14:30:00 XXXX\" including weekday, month, day, "
-        "HH:MM:SS, and year. "
+        "\"Thu Jun 5 14:30:00 2026 CST (UTC+0800)\" "
+        "including weekday, month, day, HH:MM:SS, year, timezone "
+        "abbreviation, and UTC offset. "
         "Always call this tool when the user mentions relative time "
         "(\"yesterday\", \"last week\", \"next month\", \"this year\") or asks "
         "\"what day is it\", \"what's the date\", or similar. "
@@ -22,4 +23,4 @@ from services.tools.registry import tool_registry
     params={},
 )
 def get_time() -> str:
-    return time.strftime("%c")
+    return time.strftime("%c %Z (UTC%z)")

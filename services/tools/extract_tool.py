@@ -2,6 +2,9 @@ from requests.models import Response
 
 
 import re
+import ipaddress
+import socket
+from urllib.parse import urlparse
 
 import requests
 import trafilatura
@@ -23,9 +26,35 @@ _TEXT_MIME_TYPES: frozenset[str] = frozenset[str](
 )
 
 
-def _is_http_url(url: str) -> bool:
-    """Return True if *url* uses the http or https scheme."""
-    return bool(re.match(r"^https?://", url, re.IGNORECASE))
+def _is_https_url(url: str) -> bool:
+    """Return True if *url* uses the https scheme."""
+    return bool(re.match(r"^https://", url, re.IGNORECASE))
+
+
+def _is_private_host(url: str) -> bool:
+    """Return True if *url* resolves to a private, loopback, or link-local address.
+
+    DNS-resolves the hostname and checks all resulting addresses.
+    Returns True on DNS failure or parse error (fail-closed).
+    """
+    try:
+        hostname = urlparse(url).hostname
+    except ValueError:
+        return True
+
+    if hostname is None:
+        return True
+
+    try:
+        addrs = socket.getaddrinfo(hostname, None)
+    except socket.gaierror:
+        return True
+
+    for addr in addrs:
+        ip = ipaddress.ip_address(addr[4][0])
+        if ip.is_private or ip.is_loopback or ip.is_link_local:
+            return True
+    return False
 
 
 def _get_content_type(url: str) -> str | None:
@@ -58,12 +87,14 @@ def _get_content_type(url: str) -> str | None:
     tool_description=(
         "Extract clean, readable text content from a text-based webpage "
         "(HTML, plain text, or XML only). "
-        "IMPORTANT: Do NOT use on non-text URLs — images, videos, PDFs, "
-        "file downloads, or binary content will be rejected. "
+        "IMPORTANT: Only HTTPS URLs are accepted — HTTP, non-text URLs "
+        "(images, videos, PDFs), "
+        "and binary content will be rejected. "
         "Use after a search has found relevant URLs, to get the full "
         "article text rather than just snippets. "
         "Returns the extracted plain text, or an error message starting "
-        "with 'Error:' on failure."
+        "with 'Error:' on failure. Internal/private IPs are blocked to "
+        "prevent SSRF attacks."
     ),
     params={
         "url": "The full URL of a text-based webpage to extract content from",
@@ -78,13 +109,14 @@ def _get_content_type(url: str) -> str | None:
 def extract_tool(url: str, max_length: int = 8000) -> str:
     """Download a text-based webpage and extract the main text content via trafilatura.
 
-    Validates the URL scheme (http/https) and performs a HEAD request
-    to reject non-text content types early, saving bandwidth and time.
+    Validates the URL scheme (HTTPS only), blocks private/internal IPs
+    (SSRF protection), and performs a HEAD request to reject non-text
+    content types early.
 
     On failure returns a string starting with ``"Error:"``.
 
     Args:
-        url: The full URL of the webpage to extract (http/https only, text-based).
+        url: The full HTTPS URL of the webpage to extract (text-based only).
         max_length: Maximum number of characters in the returned text.
 
     Returns:
@@ -93,14 +125,18 @@ def extract_tool(url: str, max_length: int = 8000) -> str:
     if max_length < 100 or max_length > 50000:
         return f"Error: max_length must be 100–50000, got {max_length}"
 
-    # 1. Validate URL scheme
-    if not _is_http_url(url):
+    # 1. Require HTTPS
+    if not _is_https_url(url):
+        return f"Error: Only HTTPS URLs are allowed. Got '{url[:80]}'"
+
+    # 2. Block private/internal IPs
+    if _is_private_host(url):
         return (
-            f"Error: Unsupported URL scheme. Only http:// and https:// "
-            f"URLs are allowed, got '{url[:80]}'"
+            "Error: URL resolves to a private or internal network "
+            "address. Only public URLs are allowed."
         )
 
-    # 2. HEAD probe Content-Type; reject non-text early
+    # 3. HEAD probe Content-Type; reject non-text early
     content_type: str | None = _get_content_type(url)
     if content_type is not None and content_type not in _TEXT_MIME_TYPES:
         return (
