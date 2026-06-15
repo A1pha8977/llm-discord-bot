@@ -11,6 +11,8 @@ import discord
 from discord import Message, app_commands
 from services.chat_engine import ChatContext, ChatEngine, ChatEngineError, ChatMessage
 from services.llm import TokenUsage
+from services.rate_limiter import RateLimiter, RateLimitResult
+from utils import config
 
 _logger = logging.getLogger(__name__)
 
@@ -39,6 +41,17 @@ class LLMChatCog(commands.Cog):
         # channel_id -> fixed-size message deque for LLM context.
         self._context_queues: dict[int, deque[ChatMessage]] = {}
         self._channel_locks: dict[int, asyncio.Lock] = {}
+
+        rate_cfg = config.get_rate_limit_config()
+        self._rate_limiter = RateLimiter(
+            max_requests=rate_cfg.get("max_requests", 0),
+            max_tokens=rate_cfg.get("max_tokens", 0),
+            window_seconds=rate_cfg.get("window_seconds", 3600),
+            label="global",
+        )
+        self._call_semaphore = asyncio.Semaphore(
+            rate_cfg.get("max_concurrency", 1)
+        )
 
     # ------------------------------------------------------------------
     # Queue helpers
@@ -102,8 +115,17 @@ class LLMChatCog(commands.Cog):
         async with lock:
             context = ChatContext(self._queue_get(channel_id))
 
-        async with message.channel.typing():
-            text, usage = await self._generate_reply(context, channel_id)
+        result = await self._rate_limiter.check_request()
+        if not result.allowed:
+            await self._reply_rate_limited(message, result)
+            return
+
+        async with self._call_semaphore:
+            async with message.channel.typing():
+                text, usage = await self._generate_reply(context, channel_id)
+
+        if usage.total_tokens > 0:
+            await self._rate_limiter.deduct_tokens(usage.total_tokens)
 
         async with lock:
             self._enqueue_bot_reply(channel_id, text, usage)
@@ -230,6 +252,37 @@ class LLMChatCog(commands.Cog):
         if text:
             chunks.append(text)
         return chunks
+
+    # ------------------------------------------------------------------
+    # Rate limit helpers
+    # ------------------------------------------------------------------
+
+    async def _reply_rate_limited(
+        self, message: Message, result: RateLimitResult
+    ) -> None:
+        """Reply with a user-friendly rate limit message."""
+        retry = result.retry_after_seconds
+        if retry >= 3600:
+            wait_str = f"{retry / 3600:.1f}h"
+        elif retry >= 60:
+            wait_str = f"{retry // 60:.0f}m {retry % 60:.0f}s"
+        else:
+            wait_str = f"{retry:.0f}s"
+
+        if result.reason == "requests":
+            text = (
+                f"Rate limit exceeded (requests: {result.limit_value}/{result.window_seconds:.0f}s). "
+                f"Please try again in {wait_str}."
+            )
+        elif result.reason == "tokens":
+            text = (
+                f"Rate limit exceeded (tokens: {result.limit_value}/{result.window_seconds:.0f}s). "
+                f"Please try again in {wait_str}."
+            )
+        else:
+            text = "Rate limit exceeded. Please try again later."
+
+        await message.reply(text)
 
     # ------------------------------------------------------------------
     # Commands

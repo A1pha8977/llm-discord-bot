@@ -153,6 +153,37 @@ def _validate_bot(cfg: dict) -> None:
             if not isinstance(v, bool):
                 raise ConfigParseError(f"enabled_tools.{k} must be true or false")
 
+    rl = cfg.get("rate_limit")
+    if rl is None:
+        raise ConfigParseError("Missing 'rate_limit' section")
+    if not isinstance(rl, dict):
+        raise ConfigParseError("'rate_limit' must be a mapping")
+    _validate_rate_limit(rl)
+
+
+def _validate_rate_limit(cfg: dict) -> None:
+    """Validate the rate_limit section of bot.yaml."""
+    max_req = cfg.get("max_requests", 0)
+    max_tok = cfg.get("max_tokens", 0)
+    if max_req == 0 and max_tok == 0:
+        raise ConfigParseError(
+            "both max_requests and max_tokens are 0"
+        )
+    for key in ("max_requests", "max_tokens"):
+        val = cfg.get(key, 0)
+        if not isinstance(val, int) or isinstance(val, bool) or val < 0:
+            raise ConfigParseError(
+                f"'rate_limit.{key}' must be a non-negative integer"
+            )
+    ws = cfg.get("window_seconds", 3600)
+    if not isinstance(ws, (int, float)) or ws <= 0:
+        raise ConfigParseError("'rate_limit.window_seconds' must be > 0")
+    mc = cfg.get("max_concurrency", 1)
+    if not isinstance(mc, int) or isinstance(mc, bool) or mc < 1:
+        raise ConfigParseError(
+            "'rate_limit.max_concurrency' must be a positive integer"
+        )
+
 
 def _validate_llm_providers(cfg: dict) -> None:
     if not cfg:
@@ -309,6 +340,11 @@ def get_whitelist_guilds() -> set[int]:
     An empty set means no restriction (all guilds are allowed).
     """
     return set[int](load_bot_config().get("whitelist_guilds", []))
+
+
+def get_rate_limit_config() -> dict:
+    """Return the rate_limit config dict from bot.yaml."""
+    return load_bot_config()["rate_limit"]
 
 
 def get_enabled_tools() -> dict[str, bool]:

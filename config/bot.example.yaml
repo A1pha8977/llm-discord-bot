@@ -10,3 +10,10 @@ whitelist_guilds: [] # list[int], empty = allow all
 #   extract: true
 #   random: true
 #   time: false
+
+# Global rate limiting for LLM @mention calls.
+# rate_limit:
+#   max_requests: 50         # 0 = unlimited requests
+#   max_tokens: 0            # 0 = unlimited tokens
+#   window_seconds: 3600     # time window in seconds
+#   max_concurrency: 1       # max simultaneous LLM calls

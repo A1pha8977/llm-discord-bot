@@ -85,7 +85,8 @@ cp config/llm_character.example.yaml config/llm_character.yaml
 
 ### 4. Create `config/bot.yaml`
 
-Bot global defaults, including optional per-tool enable/disable.
+Bot global defaults, including per-tool enable/disable and
+global rate limiting.
 
 ```bash
 cp config/bot.example.yaml config/bot.yaml
@@ -107,6 +108,27 @@ enabled_tools:
 
 > `llm_providers.yaml`, `llm_character.yaml`, and `bot.yaml` are gitignored.
 > Copy from `.example.yaml` and configure per deployment.
+
+Global rate limiting controls LLM @mention call frequency via
+`rate_limit` in `config/bot.yaml`.  At least one of `max_requests`
+or `max_tokens` must be non-zero.
+
+```yaml
+rate_limit:
+  max_requests: 50         # max API calls per window (0 = unlimited)
+  max_tokens: 100000       # max tokens per window (0 = unlimited)
+  window_seconds: 3600     # time window in seconds
+  max_concurrency: 1       # max simultaneous LLM calls
+```
+
+| Field | Description |
+|-------|-------------|
+| `max_requests` | Max @mention calls per window (0 = unlimited) |
+| `max_tokens` | Max cumulative tokens per window (0 = unlimited) |
+| `window_seconds` | Time window length in seconds |
+| `max_concurrency` | Max simultaneous LLM API calls |
+
+When exceeded, the bot replies with the limit type and retry time.
 
 ### 5. (Optional) Edit `config/llm_base_prompt.yaml`
 
@@ -182,6 +204,7 @@ llm-discord-bot/
 │   ├── chat_engine.py              # ChatEngine — formatting + LLM orchestration
 │   ├── llm.py                      # LLMClient — OpenAI-compatible API wrapper
 │   ├── llms.py                     # LLMClientFactory — batch client creation
+│   ├── rate_limiter.py             # RateLimiter — request count + token tracking
 │   └── tools/
 │       ├── registry.py             # ToolRegistry — registration & schema generation
 │       ├── random_tool.py          # Random number tool
@@ -192,6 +215,7 @@ llm-discord-bot/
 │   ├── config.py                   # Config loading & validate_all()
 │   └── logging.py                  # Logging setup
 ├── tests/
+│   ├── test_rate_limiter.py         # RateLimiter unit tests
 │   ├── test_registry.py            # ToolRegistry unit tests
 │   └── test_chat_engine.py         # ChatContext & ChatMessage unit tests
 ├── config/

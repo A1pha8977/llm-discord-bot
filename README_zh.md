@@ -82,7 +82,7 @@ cp config/llm_character.example.yaml config/llm_character.yaml
 
 ### 4. 创建 `config/bot.yaml`
 
-Bot 全局默认值，包含可选的单工具启用/禁用配置。
+Bot 全局默认值，包含工具启用/禁用配置和全局限流。
 
 ```bash
 cp config/bot.example.yaml config/bot.yaml
@@ -103,6 +103,26 @@ enabled_tools:
 
 > `llm_providers.yaml`、`llm_character.yaml`、`bot.yaml` 被 `.gitignore` 忽略，
 > 不进入版本控制。每个部署环境需从 `.example.yaml` 复制后独立配置。
+
+全局限流通过 `config/bot.yaml` 中的 `rate_limit` 节控制 LLM
+@mention 调用频率。`max_requests` 和 `max_tokens` 至少一项需大于 0。
+
+```yaml
+rate_limit:
+  max_requests: 50         # 时间窗口内最大调用次数（0 = 不限）
+  max_tokens: 100000       # 时间窗口内最大 token 数（0 = 不限）
+  window_seconds: 3600     # 时间窗口长度（秒）
+  max_concurrency: 1       # 最大同时 LLM 调用数
+```
+
+| 字段 | 说明 |
+|------|------|
+| `max_requests` | 时间窗口内最大调用次数（0 = 不限） |
+| `max_tokens` | 时间窗口内最大累计 token 数（0 = 不限） |
+| `window_seconds` | 时间窗口长度（秒） |
+| `max_concurrency` | 最大同时 LLM API 调用数 |
+
+超出限制时，Bot 会回复限制类型和重试时间。
 
 ### 5. （可选）编辑 `config/llm_base_prompt.yaml`
 
@@ -175,6 +195,7 @@ llm-discord-bot/
 │   ├── chat_engine.py              # ChatEngine — 核心引擎（格式化 + 调 LLM）
 │   ├── llm.py                      # LLMClient — 底层 API 封装
 │   ├── llms.py                     # LLMClientFactory — 按 YAML 批量构建客户端
+│   ├── rate_limiter.py             # RateLimiter — 请求次数 + Token 跟踪
 │   └── tools/
 │       ├── registry.py             # ToolRegistry — 工具注册 & schema 生成
 │       ├── random_tool.py          # 随机数工具
@@ -185,6 +206,7 @@ llm-discord-bot/
 │   ├── config.py                   # 配置加载 & validate_all()
 │   └── logging.py                  # 日志设置
 ├── tests/
+│   ├── test_rate_limiter.py         # RateLimiter 单元测试
 │   ├── test_registry.py            # ToolRegistry 单元测试
 │   └── test_chat_engine.py         # ChatContext & ChatMessage 单元测试
 ├── config/
