@@ -124,6 +124,48 @@ rate_limit:
 
 超出限制时，Bot 会回复限制类型和重试时间。
 
+命令权限管理通过 `config/bot.yaml` 的 `permission_levels` 和 `command_permissions` 配置。
+
+**权限等级**（从高到低）：
+
+| 等级 | 数值 | 说明 |
+|------|------|------|
+| owner | 4 | 最高权限，相当于 Bot 应用所有者 |
+| admin | 3 | 服务器管理员 |
+| user  | 2 | 受信任的普通用户 |
+| guest | 1 | 未识别用户的默认等级 |
+| block | 0 | 显式封禁，优先级高于一切 |
+
+`permission_levels` 将用户 ID 分配到各等级：
+
+```yaml
+permission_levels:
+  users:
+    owner: []
+    admin: []
+    user:  []
+    guest: []
+    block: []
+  default_level: user
+  min_context_level: guest
+```
+
+`command_permissions` 设置每个命令所需的最低等级。
+未列出的命令默认 `guest`（所有人可用）。
+
+```yaml
+command_permissions:
+  halt:
+    min_level: owner
+```
+
+| 字段 | 说明 |
+|------|------|
+| `users` | 每个等级对应的 Discord 用户 snowflake ID 列表 |
+| `default_level` | 未在列表中出现的用户的默认等级 |
+| `min_context_level` | 出现在 LLM 对话上下文中的最低等级 |
+| `commands.<name>.min_level` | 调用命令所需的最低等级 |
+
 ### 5. （可选）编辑 `config/llm_base_prompt.yaml`
 
 系统提示词：输出格式、场景、理解规则等。默认已可用。
@@ -149,7 +191,7 @@ python main.py
 | `/dice <n> ...` | 掷 n 面骰子 |
 | `/whoami` | 显示你的名字 |
 | `/clear_context` | 清除当前频道的对话上下文 |
-| `/halt` | 关闭 Bot（仅 owner） |
+| `/halt` | 关闭 Bot（权限可配置） |
 
 ## 工具调用
 
@@ -204,11 +246,13 @@ llm-discord-bot/
 │       └── extract_tool.py         # 网页正文提取（trafilatura）
 ├── utils/
 │   ├── config.py                   # 配置加载 & validate_all()
-│   └── logging.py                  # 日志设置
+│   ├── logging.py                  # 日志设置
+│   └── permissions.py              # 命令权限管理
 ├── tests/
 │   ├── test_rate_limiter.py         # RateLimiter 单元测试
 │   ├── test_registry.py            # ToolRegistry 单元测试
-│   └── test_chat_engine.py         # ChatContext & ChatMessage 单元测试
+│   ├── test_chat_engine.py         # ChatContext & ChatMessage 单元测试
+│   └── test_permissions.py          # 权限系统单元测试
 ├── config/
 │   ├── llm_base_prompt.yaml        # 系统提示词
 │   ├── llm_character.yaml          # 角色提示词（本地，gitignored）

@@ -163,6 +163,13 @@ class ToolRegistry:
                 "tool_call_id": tool_call_id,
                 "content": f"Error: invalid arguments for '{name}': {e}",
             }
+        except Exception:
+            _logger.error('Tool "%s" execution failed', name, exc_info=True)
+            return {
+                "role": "tool",
+                "tool_call_id": tool_call_id,
+                "content": f"Error: tool '{name}' execution failed",
+            }
 
         lines = result.strip().splitlines()
         truncated_lines = [

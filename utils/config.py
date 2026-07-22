@@ -60,11 +60,13 @@ from collections.abc import Callable
 from types import ModuleType
 
 import dotenv
+import logging
 import yaml
 
 _config_cache: dict[str, dict] = {}
 _dotenv_cache: dict[str, str] = {}
 _dotenv_loaded = False
+_logger = logging.getLogger(__name__)
 
 
 class ConfigError(Exception):
@@ -117,6 +119,9 @@ def _load_from_dotenv(key: str) -> str:
 # Validators
 # ---------------------------------------------------------------------------
 
+# Valid permission level names (order: high → low).
+_VALID_PERMISSION_LEVELS = frozenset({"owner", "admin", "user", "guest", "block"})
+
 
 def _validate_base_prompt(cfg: dict) -> None:
     if "base" not in cfg:
@@ -148,7 +153,9 @@ def _validate_bot(cfg: dict) -> None:
     et = cfg.get("enabled_tools")
     if et is not None:
         if not isinstance(et, dict):
-            raise ConfigParseError("'enabled_tools' must be a mapping of tool_name: bool")
+            raise ConfigParseError(
+                "'enabled_tools' must be a mapping of tool_name: bool"
+            )
         for k, v in et.items():
             if not isinstance(v, bool):
                 raise ConfigParseError(f"enabled_tools.{k} must be true or false")
@@ -160,21 +167,27 @@ def _validate_bot(cfg: dict) -> None:
         raise ConfigParseError("'rate_limit' must be a mapping")
     _validate_rate_limit(rl)
 
+    pl = cfg.get("permission_levels")
+    if pl is None:
+        raise ConfigParseError("Missing 'permission_levels' section")
+    _validate_permission_levels(pl)
+
+    cp = cfg.get("command_permissions")
+    if cp is None:
+        raise ConfigParseError("Missing 'command_permissions' section")
+    _validate_command_permissions(cp)
+
 
 def _validate_rate_limit(cfg: dict) -> None:
     """Validate the rate_limit section of bot.yaml."""
     max_req = cfg.get("max_requests", 0)
     max_tok = cfg.get("max_tokens", 0)
     if max_req == 0 and max_tok == 0:
-        raise ConfigParseError(
-            "both max_requests and max_tokens are 0"
-        )
+        raise ConfigParseError("both max_requests and max_tokens are 0")
     for key in ("max_requests", "max_tokens"):
         val = cfg.get(key, 0)
         if not isinstance(val, int) or isinstance(val, bool) or val < 0:
-            raise ConfigParseError(
-                f"'rate_limit.{key}' must be a non-negative integer"
-            )
+            raise ConfigParseError(f"'rate_limit.{key}' must be a non-negative integer")
     ws = cfg.get("window_seconds", 3600)
     if not isinstance(ws, (int, float)) or ws <= 0:
         raise ConfigParseError("'rate_limit.window_seconds' must be > 0")
@@ -183,6 +196,88 @@ def _validate_rate_limit(cfg: dict) -> None:
         raise ConfigParseError(
             "'rate_limit.max_concurrency' must be a positive integer"
         )
+
+
+def _validate_permission_levels(cfg: dict) -> None:
+    """Validate the permission_levels section of bot.yaml."""
+    users = cfg.get("users")
+    if users is None:
+        raise ConfigParseError("'permission_levels.users' is required")
+    if not isinstance(users, dict):
+        raise ConfigParseError("'permission_levels.users' must be a mapping")
+    for required_level in sorted(_VALID_PERMISSION_LEVELS):
+        if required_level not in users:
+            raise ConfigParseError(
+                f"'permission_levels.users' must include all five levels; "
+                f"missing: '{required_level}'"
+            )
+    for level_name, user_ids in users.items():
+        if level_name not in _VALID_PERMISSION_LEVELS:
+            raise ConfigParseError(
+                f"'permission_levels.users.{level_name}' is not a valid level "
+                f"(expected one of {sorted(_VALID_PERMISSION_LEVELS)})"
+            )
+        if not isinstance(user_ids, list):
+            raise ConfigParseError(
+                f"'permission_levels.users.{level_name}' must be a list"
+            )
+        for uid in user_ids:
+            if not isinstance(uid, int) or isinstance(uid, bool):
+                raise ConfigParseError(
+                    f"'permission_levels.users.{level_name}' "
+                    f"contains non-integer value: {uid}"
+                )
+
+    # Warn on duplicate user IDs across levels.
+    seen: dict[int, str] = {}
+    for level_name, user_ids in users.items():
+        for uid in user_ids:
+            if uid in seen and seen[uid] != level_name:
+                _logger.warning(
+                    "User ID %d appears in both '%s' and '%s' permission levels",
+                    uid,
+                    seen[uid],
+                    level_name,
+                )
+            else:
+                seen[uid] = level_name
+
+    default = cfg.get("default_level")
+    if default is not None:
+        if not isinstance(default, str) or default not in _VALID_PERMISSION_LEVELS:
+            raise ConfigParseError(
+                f"'permission_levels.default_level' must be one of "
+                f"{sorted(_VALID_PERMISSION_LEVELS)}, got: {default}"
+            )
+
+    min_ctx = cfg.get("min_context_level")
+    if min_ctx is not None:
+        if not isinstance(min_ctx, str) or min_ctx not in _VALID_PERMISSION_LEVELS:
+            raise ConfigParseError(
+                f"'permission_levels.min_context_level' must be one of "
+                f"{sorted(_VALID_PERMISSION_LEVELS)}, got: {min_ctx}"
+            )
+
+
+def _validate_command_permissions(cfg: dict) -> None:
+    """Validate the command_permissions section of bot.yaml."""
+    if not isinstance(cfg, dict):
+        raise ConfigParseError("'command_permissions' must be a mapping")
+    for cmd_name, cmd_cfg in cfg.items():
+        if not isinstance(cmd_cfg, dict):
+            raise ConfigParseError(
+                f"'command_permissions.{cmd_name}' must be a mapping"
+            )
+        min_level = cmd_cfg.get("min_level")
+        if min_level is not None:
+            if (
+                not isinstance(min_level, str)
+                or min_level not in _VALID_PERMISSION_LEVELS
+            ):
+                raise ConfigParseError(
+                    f"'command_permissions.{cmd_name}.min_level' must be one of "
+                    f"{sorted(_VALID_PERMISSION_LEVELS)}, got: {min_level}"
+                )
 
 
 def _validate_llm_providers(cfg: dict) -> None:
@@ -241,9 +336,7 @@ def _validate_llm_providers(cfg: dict) -> None:
         for pname in provider.get("profiles", {}):
             valid_profiles.add(f"{name}-{pname}")
     if dp not in valid_profiles:
-        raise ConfigParseError(
-            f"default_profile '{dp}' not found in providers"
-        )
+        raise ConfigParseError(f"default_profile '{dp}' not found in providers")
 
 
 # ---------------------------------------------------------------------------
@@ -347,6 +440,16 @@ def get_rate_limit_config() -> dict:
     return load_bot_config()["rate_limit"]
 
 
+def get_permission_levels_config() -> dict:
+    """Return the permission_levels config dict from ``bot.yaml``."""
+    return load_bot_config()["permission_levels"]
+
+
+def get_command_permissions_config() -> dict:
+    """Return the command_permissions config dict from ``bot.yaml``."""
+    return load_bot_config()["command_permissions"]
+
+
 def get_enabled_tools() -> dict[str, bool]:
     """Return the enabled_tools mapping from ``bot.yaml``.
 
@@ -384,9 +487,7 @@ def validate_tool_api_keys() -> None:
             try:
                 get_api_key(provider_name)
             except ValueError as e:
-                raise ValueError(
-                    f"Tool '{tool_name}' is enabled but {e}"
-                ) from e
+                raise ValueError(f"Tool '{tool_name}' is enabled but {e}") from e
 
 
 # ---------------------------------------------------------------------------

@@ -7,6 +7,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from utils.permissions import CommandPermissionError, check_command_permission
+
 
 class GeneralCog(commands.Cog):
     """Simple utility slash commands available to all users.
@@ -18,6 +20,25 @@ class GeneralCog(commands.Cog):
     def __init__(self, discord_bot: commands.Bot) -> None:
         super().__init__()
         self._discord_bot = discord_bot
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """Enforce config-driven command permission for every slash command."""
+        assert interaction.command is not None
+        allowed, msg = await check_command_permission(
+            interaction, interaction.command.name
+        )
+        if not allowed:
+            raise CommandPermissionError(msg)
+        return True
+
+    async def cog_app_command_error(
+        self, interaction: discord.Interaction, error: app_commands.AppCommandError
+    ) -> None:
+        """Handle CommandPermissionError raised by interaction_check."""
+        error = getattr(error, "original", error)
+        if isinstance(error, CommandPermissionError):
+            await interaction.response.send_message(str(error), ephemeral=True)
+            return
 
     @app_commands.command(name="ping", description="Return the current server time.")
     async def ping(self, interaction: discord.Interaction):
@@ -53,12 +74,7 @@ class GeneralCog(commands.Cog):
     async def whoami(self, interaction: discord.Interaction):
         await interaction.response.send_message(interaction.user.display_name)
 
-    @app_commands.command(name="halt", description="Shut down the bot (owner only).")
+    @app_commands.command(name="halt", description="Shut down the bot.")
     async def halt(self, interaction: discord.Interaction):
-        if not await self._discord_bot.is_owner(interaction.user):
-            await interaction.response.send_message(
-                "Only the bot owner can use this command.", ephemeral=True
-            )
-            return
         await interaction.response.send_message("Shutting down...")
         await self._discord_bot.close()

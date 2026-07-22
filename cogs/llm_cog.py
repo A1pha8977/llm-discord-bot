@@ -13,6 +13,7 @@ from services.chat_engine import ChatContext, ChatEngine, ChatEngineError, ChatM
 from services.llm import TokenUsage
 from services.rate_limiter import RateLimiter, RateLimitResult
 from utils import config
+from utils.permissions import CommandPermissionError, check_command_permission, check_context_permission
 
 _logger = logging.getLogger(__name__)
 
@@ -49,9 +50,26 @@ class LLMChatCog(commands.Cog):
             window_seconds=rate_cfg.get("window_seconds", 3600),
             label="global",
         )
-        self._call_semaphore = asyncio.Semaphore(
-            rate_cfg.get("max_concurrency", 1)
+        self._call_semaphore = asyncio.Semaphore(rate_cfg.get("max_concurrency", 1))
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """Enforce config-driven command permission for every slash command."""
+        assert interaction.command is not None
+        allowed, msg = await check_command_permission(
+            interaction, interaction.command.name
         )
+        if not allowed:
+            raise CommandPermissionError(msg)
+        return True
+
+    async def cog_app_command_error(
+        self, interaction: discord.Interaction, error: app_commands.AppCommandError
+    ) -> None:
+        """Handle CommandPermissionError raised by interaction_check."""
+        error = getattr(error, "original", error)
+        if isinstance(error, CommandPermissionError):
+            await interaction.response.send_message(str(error), ephemeral=True)
+            return
 
     # ------------------------------------------------------------------
     # Queue helpers
@@ -87,6 +105,8 @@ class LLMChatCog(commands.Cog):
         order is preserved across concurrent ``on_message`` invocations.
         """
         if message.author.bot:
+            return
+        if not check_context_permission(message.author.id):
             return
         channel_id = message.channel.id
         lock = self._channel_locks.setdefault(channel_id, asyncio.Lock())
@@ -291,7 +311,7 @@ class LLMChatCog(commands.Cog):
     @app_commands.command(name="usage", description="Display cumulative token usage.")
     async def usage(self, interaction: discord.Interaction):
         await interaction.response.send_message(
-            f"COMMAND:\n{self._chat_engine.get_total_usage().to_readable()}"
+            self._chat_engine.get_total_usage().to_readable()
         )
 
     @app_commands.command(
@@ -305,12 +325,12 @@ class LLMChatCog(commands.Cog):
         available = self._chat_engine.prompt_profile_names
         if prompt_profile_name is None:
             await interaction.response.send_message(
-                f"switch_prompt COMMAND:\nAvailable profiles: {available}"
+                f"Available profiles: {available}", ephemeral=True
             )
             return
         if prompt_profile_name not in available:
             await interaction.response.send_message(
-                f"switch_prompt COMMAND:\n{prompt_profile_name} does not exist"
+                f"{prompt_profile_name} does not exist", ephemeral=True
             )
             return
         assert interaction.channel_id is not None
@@ -322,7 +342,7 @@ class LLMChatCog(commands.Cog):
             prompt_profile_name,
         )
         await interaction.response.send_message(
-            "switch_prompt COMMAND:\nswitch prompt succeeded"
+            f"Switched to {prompt_profile_name}"
         )
 
     @app_commands.command(
@@ -336,12 +356,12 @@ class LLMChatCog(commands.Cog):
         available_llm = self._chat_engine.llm_profile_names
         if client_key is None:
             await interaction.response.send_message(
-                f"switch_llm COMMAND:\nAvailable: {available_llm}"
+                f"Available: {available_llm}", ephemeral=True
             )
             return
         if client_key not in available_llm:
             await interaction.response.send_message(
-                f"switch_llm COMMAND:\n'{client_key}' not found. Available: {available_llm}"
+                f"'{client_key}' not found. Available: {available_llm}", ephemeral=True
             )
             return
         assert interaction.channel_id is not None
@@ -353,7 +373,7 @@ class LLMChatCog(commands.Cog):
             client_key,
         )
         await interaction.response.send_message(
-            f"switch_llm COMMAND:\nswitched to {client_key}"
+            f"Switched to {client_key}"
         )
 
     @app_commands.command(
@@ -372,5 +392,5 @@ class LLMChatCog(commands.Cog):
             size,
         )
         await interaction.response.send_message(
-            f"clear_context COMMAND:\nContext cleared (was {size} messages)."
+            f"Context cleared (was {size} messages)."
         )

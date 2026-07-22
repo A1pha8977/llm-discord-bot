@@ -188,6 +188,7 @@ class RateLimiter:
         Acquires the internal lock to ensure a consistent read.
         """
         async with self._lock:
+            self._refresh(time.monotonic())
             return self._req_count
 
     async def get_token_count(self) -> int:
@@ -196,6 +197,7 @@ class RateLimiter:
         Acquires the internal lock to ensure a consistent read.
         """
         async with self._lock:
+            self._refresh(time.monotonic())
             return self._tok_count
 
     @property

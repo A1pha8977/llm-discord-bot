@@ -57,6 +57,17 @@ class MyBot(commands.Bot):
         except Exception as e:
             logger.error("Global slash command sync failed: %s", e)
 
+        # Also sync to whitelisted guilds for instant propagation.
+        from utils import config as _cfg
+        for gid in _cfg.get_whitelist_guilds():
+            guild = self.get_guild(gid)
+            if guild is not None:
+                try:
+                    await self.tree.sync(guild=guild)
+                    logger.info("Guild slash command sync: %s (%d)", guild.name, gid)
+                except Exception as e:
+                    logger.error("Guild sync failed for %d: %s", gid, e)
+
 
 def create_bot() -> MyBot:
     """Create a new MyBot instance."""

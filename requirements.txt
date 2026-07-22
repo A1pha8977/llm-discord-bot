@@ -1,6 +1,8 @@
 discord==2.3.2
 openai==2.38.0
 python-dotenv==1.2.2
+PyYAML==6.0.3
+requests==2.34.2
 tavily-python==0.7.25
 trafilatura==2.0.0
 lxml_html_clean==0.4.5

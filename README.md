@@ -130,6 +130,49 @@ rate_limit:
 
 When exceeded, the bot replies with the limit type and retry time.
 
+Command permission management via `permission_levels` and `command_permissions`
+in `config/bot.yaml`.
+
+**Permission levels** (ordered high -> low):
+
+| Level | Value | Description |
+|-------|-------|-------------|
+| owner | 4 | Equivalent to bot application owner |
+| admin | 3 | Server administrators |
+| user  | 2 | Trusted regular users |
+| guest | 1 | Default for unrecognised users |
+| block | 0 | Explicitly banned -- overrides everything |
+
+`permission_levels` assigns user IDs to levels:
+
+```yaml
+permission_levels:
+  users:
+    owner: []
+    admin: []
+    user:  []
+    guest: []
+    block: []
+  default_level: user
+  min_context_level: guest
+```
+
+`command_permissions` sets the minimum level required per command.
+Unlisted commands default to `guest` (everyone allowed).
+
+```yaml
+command_permissions:
+  halt:
+    min_level: owner
+```
+
+| Field | Description |
+|-------|-------------|
+| `users` | Maps each level to a list of Discord user snowflake IDs |
+| `default_level` | Level assigned to users not listed in any level |
+| `min_context_level` | Minimum level to appear in LLM conversation context |
+| `commands.<name>.min_level` | Minimum level required to invoke a command |
+
 ### 5. (Optional) Edit `config/llm_base_prompt.yaml`
 
 System prompt for the LLM: output format, scenario, comprehension rules, etc.
@@ -156,7 +199,7 @@ python main.py
 | `/dice <n> ...` | Roll dice with N faces |
 | `/whoami` | Show your display name |
 | `/clear_context` | Clear conversation context for the current channel |
-| `/halt` | Shut down the bot (owner only) |
+| `/halt` | Shut down the bot (configurable permission) |
 
 ## Tool Calling
 
@@ -213,11 +256,13 @@ llm-discord-bot/
 │       └── extract_tool.py         # Web content extraction (trafilatura)
 ├── utils/
 │   ├── config.py                   # Config loading & validate_all()
-│   └── logging.py                  # Logging setup
+│   ├── logging.py                  # Logging setup
+│   └── permissions.py              # Command permission enforcement
 ├── tests/
 │   ├── test_rate_limiter.py         # RateLimiter unit tests
 │   ├── test_registry.py            # ToolRegistry unit tests
-│   └── test_chat_engine.py         # ChatContext & ChatMessage unit tests
+│   ├── test_chat_engine.py         # ChatContext & ChatMessage unit tests
+│   └── test_permissions.py          # Permission system unit tests
 ├── config/
 │   ├── llm_base_prompt.yaml        # System prompt
 │   ├── llm_character.yaml          # Character prompts (gitignored)

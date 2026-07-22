@@ -12,8 +12,40 @@ whitelist_guilds: [] # list[int], empty = allow all
 #   time: false
 
 # Global rate limiting for LLM @mention calls.
-# rate_limit:
-#   max_requests: 50         # 0 = unlimited requests
-#   max_tokens: 0            # 0 = unlimited tokens
-#   window_seconds: 3600     # time window in seconds
-#   max_concurrency: 1       # max simultaneous LLM calls
+rate_limit:
+    max_requests: 50 # 0 = unlimited requests
+    max_tokens: 0 # 0 = unlimited tokens
+    window_seconds: 3600 # time window in seconds
+    max_concurrency: 1 # max simultaneous LLM calls
+
+# ── Command permission management ──
+# Assign users to permission levels and set minimum levels for commands.
+# Levels (high → low): owner, admin, user, guest, block.
+# - "block" takes absolute priority regardless of other level assignments.
+# - Users not listed in any level receive "default_level".
+# - Commands not listed default to min_level: guest (everyone allowed).
+
+permission_levels:
+    users:
+        owner: []
+        admin: []
+        user: []
+        guest: []
+        block: []
+    default_level: user
+    min_context_level: guest # users below this level are silently ignored
+
+    # Tip: for non-empty levels, IDs can be written one per line:
+    #   admin:
+    #       - 123456789012345678
+    #       - 234567890123456789
+
+command_permissions:
+    halt:
+        min_level: owner
+    # switch_llm:
+    #   min_level: admin
+    # switch_prompt:
+    #   min_level: admin
+    # clear_context:
+    #   min_level: admin
